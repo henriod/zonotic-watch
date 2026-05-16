@@ -1,0 +1,38 @@
+/* ───────────────────────────────────────────────────────────────
+   Design tokens — consumed by ZonoticWatch.jsx via var(--token).
+   Keep this file as the single source of truth for the palette.
+   ─────────────────────────────────────────────────────────────── */
+:root {
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* Radii */
+  --border-radius-md: 6px;
+  --border-radius-lg: 10px;
+
+  /* Text */
+  --color-text-primary: #1a1d21;
+  --color-text-secondary: #5c6470;
+  --color-text-tertiary: #9099a3;
+  --color-text-danger: #b03030;
+  --color-text-warning: #b5731a;
+  --color-text-info: #2068a0;
+  --color-text-success: #208050;
+
+  /* Backgrounds */
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f3f4f6;
+  --color-background-danger: #fbe9e9;
+  --color-background-warning: #fcf2e3;
+  --color-background-success: #e7f5ee;
+  --color-background-info: #e7f0fa;
+
+  /* Borders */
+  --color-border-primary: #c4cad2;
+  --color-border-secondary: #d8dde3;
+  --color-border-tertiary: #e6e9ed;
+  --color-border-info: #2068a0;
+}
