@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 
 import { TREND } from "../data/surveillance.js";
+import { apiEnabled, apiGet } from "../lib/api.js";
 import { panel } from "../lib/ui.js";
 
 /** Trend series — label and color, shared by the legend and the areas. */
@@ -28,11 +30,27 @@ function ChartTip({ active, payload, label }) {
   );
 }
 
-/** 15-day case-trend area chart for Kenya. */
+/** Weekly case-trend area chart for Kenya, backed by `/trend`. */
 export default function TrendChart() {
+  const [trend, setTrend] = useState(TREND);
+
+  // Backend `/trend` aggregates county_week_features; seed `TREND` is the
+  // offline fallback. A wide window surfaces the full RVF event history
+  // (EMPRES-i runs 2004–2024) alongside recent signal weeks.
+  useEffect(() => {
+    if (!apiEnabled()) return;
+    let cancelled = false;
+    apiGet("/trend?days=9000")
+      .then(t => { if (!cancelled && Array.isArray(t) && t.length) setTrend(t); })
+      .catch(err => console.error("Trend fetch failed; using seed data:", err));
+    return () => { cancelled = true; };
+  }, []);
+
+  const sum = key => trend.reduce((s, p) => s + (p[key] || 0), 0);
+
   return (
     <div style={{ ...panel, padding:"1rem" }}>
-      <p style={{ margin:"0 0 8px", fontWeight:500, fontSize:13 }}>Case trend — Kenya (May 2026)</p>
+      <p style={{ margin:"0 0 8px", fontWeight:500, fontSize:13 }}>Weekly case trend — Kenya</p>
       <div style={{ display:"flex", gap:14, marginBottom:10 }}>
         {SERIES.map(s => (
           <span key={s.key} style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, color:"var(--color-text-secondary)" }}>
@@ -42,7 +60,7 @@ export default function TrendChart() {
         ))}
       </div>
       <ResponsiveContainer width="100%" height={180}>
-        <AreaChart data={TREND} margin={{ top:4, right:8, left:-20, bottom:0 }}>
+        <AreaChart data={trend} margin={{ top:4, right:8, left:-20, bottom:0 }}>
           <XAxis dataKey="day" tick={{ fontSize:12, fill:"var(--color-text-tertiary)" }} tickLine={false} />
           <YAxis tick={{ fontSize:12, fill:"var(--color-text-tertiary)" }} tickLine={false} axisLine={false} />
           <Tooltip content={<ChartTip />} />
@@ -53,7 +71,7 @@ export default function TrendChart() {
       </ResponsiveContainer>
       <p style={{ margin:"8px 0 0", fontSize:12, color:"var(--color-text-secondary)" }}>
         <i className="ti ti-trending-up" style={{ fontSize:12, color:"var(--color-text-danger)", marginRight:4 }} aria-hidden="true" />
-        Livestock cases +380% over 15 days — consistent with RVF seasonal amplification pattern
+        {sum("human")} human · {sum("animal")} livestock · {sum("rvf")} RVF signals across {trend.length} weeks
       </p>
     </div>
   );

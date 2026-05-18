@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "zonoticwatch-backend"
+version = "0.1.0"
+description = "ZonoticWatch Kenya backend — FastAPI + PostGIS + Temporal"
+authors = ["ZonoticWatch Kenya"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.0"
+uvicorn = { extras = ["standard"], version = "^0.34.0" }
+pydantic = "^2.10.0"
+pydantic-settings = "^2.7.0"
+sqlalchemy = { extras = ["asyncio"], version = "^2.0.36" }
+asyncpg = "^0.30.0"
+alembic = "^1.14.0"
+geoalchemy2 = "^0.16.0"
+temporalio = "^1.9.0"
+httpx = "^0.28.0"
+esda = "^2.5.1"        # Getis-Ord Gi* hotspot analysis
+libpysal = "^4.9.2"    # spatial weights (queen contiguity)
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.9.0"
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

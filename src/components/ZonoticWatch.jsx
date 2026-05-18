@@ -1,12 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
-import {
-  COUNTIES, SIGNALS, SCRAPE_KEYWORDS, TWITTER_HANDLES,
-} from "../data/surveillance.js";
-import { runTweetScraper } from "../lib/apify.js";
-import { fetchGdeltArticles } from "../lib/gdelt.js";
+import { COUNTIES, SIGNALS } from "../data/surveillance.js";
 import { fetchCountyWeather } from "../lib/weather.js";
-import { tweetsToSignals, articlesToSignals } from "../lib/signals.js";
+import { apiEnabled, apiGet, apiPost } from "../lib/api.js";
 import { panel } from "../lib/ui.js";
 
 import DashboardHeader from "./DashboardHeader.jsx";
@@ -36,14 +32,10 @@ export default function ZonoticWatch() {
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState("map");
   const [analysisText, setAnalysisText] = useState("");
-  // Pre-fill from .env (VITE_APIFY_TOKEN) so the scraper works without
-  // re-pasting the token; the field stays editable.
-  const [apifyToken, setApifyToken] = useState(
-    import.meta.env.VITE_APIFY_TOKEN || ""
-  );
   const [scraping, setScraping] = useState(false);
   const [scrapeStatus, setScrapeStatus] = useState("");
   const [signals, setSignals] = useState(SIGNALS);
+  const [counties, setCounties] = useState(COUNTIES);
   const [weather, setWeather] = useState({});
   const [pulse, setPulse] = useState(false);
   const [scanTime, setScanTime] = useState(new Date());
@@ -56,76 +48,90 @@ export default function ZonoticWatch() {
     return () => clearInterval(t);
   }, []);
 
-  // Pull live weather for every county once on mount (Open-Meteo, no key).
+  // Load counties from the backend (falling back to the seed array), then
+  // fetch live weather for the monitored subset (Open-Meteo, no key).
   useEffect(() => {
     let cancelled = false;
-    fetchCountyWeather(COUNTIES)
-      .then(w => { if (!cancelled) setWeather(w); })
-      .catch(err => console.error("Weather fetch failed:", err));
+    (async () => {
+      let cs = COUNTIES;
+      if (apiEnabled()) {
+        try {
+          cs = await apiGet("/counties");
+        } catch (err) {
+          console.error("Counties fetch failed; using seed data:", err);
+        }
+      }
+      if (cancelled) return;
+      setCounties(cs);
+      fetchCountyWeather(cs.filter(c => c.monitored !== false))
+        .then(w => { if (!cancelled) setWeather(w); })
+        .catch(err => console.error("Weather fetch failed:", err));
+    })();
     return () => { cancelled = true; };
   }, []);
 
-  // Pull from every configured source and merge results into the feed.
+  // When a backend is configured, load the live signal feed on mount.
+  // Otherwise the SIGNALS seed (the initial state) stands in unchanged.
+  useEffect(() => {
+    if (!apiEnabled()) return;
+    let cancelled = false;
+    apiGet("/signals?limit=100")
+      .then(s => { if (!cancelled) setSignals(s); })
+      .catch(err =>
+        console.error("Signal feed fetch failed; using seed data:", err)
+      );
+    return () => { cancelled = true; };
+  }, []);
+
+  // Trigger a server-side ingestion run, poll it to completion, then
+  // reload the feed. Scraping, classification, geocoding, and de-dup all
+  // happen in the backend's Temporal workflow — this is just a thin client.
   const handleRefresh = async () => {
     if (scraping) return;
+    if (!apiEnabled()) {
+      setScrapeStatus("No backend configured — set VITE_API_BASE to ingest.");
+      return;
+    }
     setScraping(true);
-    const collected = [];
-    const notes = [];
-
-    // ── Source 1: GDELT news index (free, no key) ──
+    setScrapeStatus("Starting ingestion run…");
     try {
-      const articles = await fetchGdeltArticles({
-        maxRecords: 25,
-        onStatus: setScrapeStatus,
-      });
-      const sigs = articlesToSignals(articles);
-      collected.push(...sigs);
-      notes.push(`News: ${sigs.length}`);
-    } catch (e) {
-      notes.push(`News failed (${e.message})`);
-    }
+      const { workflow_id } = await apiPost("/refresh");
 
-    // ── Source 2: Apify Tweet Scraper (needs a token + paid Apify plan) ──
-    if (apifyToken) {
-      try {
-        const items = await runTweetScraper(apifyToken, {
-          searchTerms: SCRAPE_KEYWORDS,
-          twitterHandles: TWITTER_HANDLES,
-          maxItems: 60,
-          onStatus: setScrapeStatus,
-        });
-        // {noResults:true} placeholders come back on free / API runs.
-        const usable = (items ?? []).filter(it => it && !it.noResults);
-        if (usable.length === 0) {
-          notes.push("Apify: 0 (paid plan required)");
-        } else {
-          const sigs = tweetsToSignals(usable);
-          collected.push(...sigs);
-          notes.push(`Apify: ${sigs.length}`);
-        }
-      } catch (e) {
-        notes.push(`Apify failed (${e.message})`);
+      let status = "RUNNING";
+      let result = null;
+      for (let i = 0; i < 120 && status === "RUNNING"; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const poll = await apiGet(`/refresh/${workflow_id}`);
+        status = poll.status;
+        result = poll.result;
+        setScrapeStatus(`Ingestion ${status.toLowerCase()}…`);
       }
-    } else {
-      notes.push("Apify: skipped (no token)");
-    }
 
-    // ── Merge into the feed, newest first, de-duplicated by id ──
-    if (collected.length > 0) {
-      setSignals(prev => {
-        const seen = new Set(prev.map(s => String(s.id)));
-        const fresh = collected.filter(s => !seen.has(String(s.id)));
-        return [...fresh, ...prev];
-      });
-      setScanTime(new Date());
+      if (status === "COMPLETED" && result) {
+        setSignals(await apiGet("/signals?limit=100"));
+        setScanTime(new Date());
+        const notes = Object.entries(result.notes ?? {})
+          .map(([src, n]) => `${src}: ${n}`)
+          .join(" · ");
+        setScrapeStatus(`Done — +${result.inserted} signal(s) · ${notes}`);
+      } else {
+        setScrapeStatus(`Ingestion ${status.toLowerCase()}`);
+      }
+    } catch (e) {
+      setScrapeStatus(`Refresh failed: ${e.message}`);
+    } finally {
+      setScraping(false);
     }
-    setScrapeStatus(`Done — +${collected.length} signal(s) · ${notes.join(" · ")}`);
-    setScraping(false);
   };
 
-  const totalHuman = COUNTIES.reduce((s, c) => s + c.human, 0);
-  const totalAnimal = COUNTIES.reduce((s, c) => s + c.animal, 0);
-  const countiesAffected = COUNTIES.filter(c => c.risk > 0.5).length;
+  // Monitored subset (seed counties carry no flag and are all monitored).
+  const monitoredCounties = useMemo(
+    () => counties.filter(c => c.monitored !== false),
+    [counties],
+  );
+  const totalHuman = counties.reduce((s, c) => s + (c.human || 0), 0);
+  const totalAnimal = counties.reduce((s, c) => s + (c.animal || 0), 0);
+  const countiesAffected = counties.filter(c => c.risk > 0.5).length;
   const critCount = signals.filter(s => s.sev === "CRITICAL").length;
   const highCount = signals.filter(s => s.sev === "HIGH").length;
   const overallRisk = critCount > 0 ? "CRITICAL" : highCount >= 3 ? "HIGH" : "ELEVATED";
@@ -177,15 +183,18 @@ export default function ZonoticWatch() {
           </div>
 
           {tab === "map" && (
-            <SpatialView selected={selected} onSelect={setSelected} weather={weather} />
+            <SpatialView
+              selected={selected}
+              onSelect={setSelected}
+              weather={weather}
+              counties={monitoredCounties}
+            />
           )}
           {tab === "weather" && (
-            <WeatherPanel counties={COUNTIES} weather={weather} />
+            <WeatherPanel counties={monitoredCounties} weather={weather} />
           )}
           {tab === "config" && (
             <DataSourcesPanel
-              apifyToken={apifyToken}
-              setApifyToken={setApifyToken}
               scraping={scraping}
               scrapeStatus={scrapeStatus}
               onRefresh={handleRefresh}

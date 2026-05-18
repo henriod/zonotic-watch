@@ -30,13 +30,13 @@ function MapLoading() {
  * detail card for whichever county is selected.
  *
  * @param {{ selected: object|null, onSelect: (county: object|null) => void,
- *           weather: Record<string, object> }} props
+ *           weather: Record<string, object>, counties: object[] }} props
  */
-export default function SpatialView({ selected, onSelect, weather }) {
+export default function SpatialView({ selected, onSelect, weather, counties }) {
   return (
     <div style={{ padding:"1rem", display:"flex", flexDirection:"column", alignItems:"center" }}>
       <Suspense fallback={<MapLoading />}>
-        <KenyaMap selected={selected} onSelect={onSelect} />
+        <KenyaMap selected={selected} onSelect={onSelect} counties={counties} />
       </Suspense>
       {/* Legend */}
       <div style={{ display:"flex", gap:14, marginTop:8 }}>

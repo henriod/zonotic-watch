@@ -1,6 +1,13 @@
 # Dependencies
 node_modules/
 
+# Backend (Python)
+**/__pycache__/
+*.py[cod]
+backend/.venv/
+backend/.ruff_cache/
+backend/.pytest_cache/
+
 # Build output
 dist/
 dist-ssr/

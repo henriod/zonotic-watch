@@ -52,14 +52,19 @@ export async function fetchCountyWeather(counties, onStatus) {
   return weather;
 }
 
+/** Placeholder shown until live weather loads (backend counties carry no `wx`). */
+const NO_WEATHER = { temp: "–", hum: "–", rain: "–" };
+
 /**
  * Resolve a county's weather: the live Open-Meteo value if it has loaded,
- * otherwise the county's seeded `wx` sample.
+ * else the county's seeded `wx` sample, else a neutral placeholder.
+ * Backend-sourced counties have no `wx`, so the placeholder covers the
+ * brief window before live weather arrives.
  *
- * @param {{ id: string, wx: object }} county
+ * @param {{ id: string, wx?: object }} county
  * @param {Record<string, object>} weather - map from `fetchCountyWeather`
- * @returns {{ temp: number, hum: number, rain: number }}
+ * @returns {{ temp: number|string, hum: number|string, rain: number|string }}
  */
 export function countyWeather(county, weather) {
-  return weather[county.id] ?? county.wx;
+  return weather[county.id] ?? county.wx ?? NO_WEATHER;
 }

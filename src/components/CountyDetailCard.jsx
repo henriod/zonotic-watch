@@ -17,10 +17,10 @@ export default function CountyDetailCard({ county, wx }) {
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
         {[
-          ["Human",     county.human],
-          ["Livestock", county.animal],
+          ["Human",     county.human ?? 0],
+          ["Livestock", county.animal ?? 0],
           ["Temp",      `${wx.temp}°C`],
-          ["Disease",   county.disease],
+          ["Disease",   county.disease ?? "—"],
         ].map(([l,v]) => (
           <div key={l}>
             <p style={{ margin:0, fontSize:12, color:"var(--color-text-secondary)" }}>{l}</p>

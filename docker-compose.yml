@@ -1,0 +1,115 @@
+# ZonoticWatch Kenya — local development stack.
+#
+# Brings up Postgres/PostGIS, the Temporal server (+ Web UI), the FastAPI
+# app, and the Temporal worker. The Vite frontend is NOT containerised —
+# it keeps running via `npm run dev` and is untouched by Phase 1 step 1.
+#
+#   docker compose up --build
+#
+# Endpoints once healthy:
+#   FastAPI      http://localhost:8000/health
+#   FastAPI docs http://localhost:8000/docs
+#   Temporal UI  http://localhost:8080
+name: zonoticwatch
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: zonotic
+      POSTGRES_PASSWORD: zonotic
+      POSTGRES_DB: zonotic
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zonotic -d zonotic"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Temporal auto-setup creates its `temporal` / `temporal_visibility`
+  # databases inside the same Postgres server (separate DBs from `zonotic`).
+  temporal:
+    image: temporalio/auto-setup:1.25.2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: zonotic
+      POSTGRES_PWD: zonotic
+      POSTGRES_SEEDS: postgres
+    ports:
+      - "7233:7233"
+    # auto-setup runs schema setup + `default` namespace registration AFTER
+    # the container starts — gate dependents on the namespace actually
+    # existing, not just on the process being up.
+    # Temporal binds to the container's network IP (not loopback), so the
+    # probe targets the compose service alias, which the container can
+    # resolve for itself.
+    healthcheck:
+      test:
+        ["CMD", "tctl", "--address", "temporal:7233", "--namespace", "default",
+         "namespace", "describe"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:5173
+    ports:
+      - "8080:8080"
+
+  backend:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://zonotic:zonotic@postgres:5432/zonotic
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: zonoticwatch
+      CORS_ORIGINS: http://localhost:5173
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      # GADM GeoJSON, read-only — consumed by scripts/load_counties.py.
+      - ./public/data:/app/data:ro
+
+  worker:
+    build: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://zonotic:zonotic@postgres:5432/zonotic
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: zonoticwatch
+      # Ingestion sources. APIFY_TOKEN is interpolated from the repo-root
+      # .env (the actor needs a paid plan; blank just skips the X source).
+      GDELT_API_BASE: https://api.gdeltproject.org
+      APIFY_TOKEN: ${APIFY_TOKEN:-}
+    command: ["python", "-m", "app.temporal.worker"]
+    volumes:
+      - ./backend:/app
+
+volumes:
+  pgdata:

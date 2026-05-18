@@ -1,5 +1,19 @@
 import { SCRAPE_KEYWORDS, TWITTER_HANDLES } from "../data/surveillance.js";
 
+/** Ingestion sources — all now run server-side in the Temporal workflow. */
+const SOURCES = [
+  {
+    name: "GDELT news index",
+    detail: "Kenya disease news — free, no key",
+    note: "server-side",
+  },
+  {
+    name: "Apify · apidojo~tweet-scraper",
+    detail: "X/Twitter signals (needs a paid Apify plan)",
+    note: "server-side",
+  },
+];
+
 /** Architecture steps shown at the bottom of the panel. */
 const PIPELINE = [
   "GDELT news API + Apify scraper → raw text",
@@ -10,38 +24,30 @@ const PIPELINE = [
 ];
 
 /**
- * "Data Sources" tab — source status, the Apify token field + query config,
- * and the "Pull live signals" trigger.
+ * "Data Sources" tab — source status, the monitored query config (read
+ * only), and the "Pull live signals" trigger.
  *
- * @param {{ apifyToken: string, setApifyToken: (v: string) => void,
- *           scraping: boolean, scrapeStatus: string,
+ * Ingestion is fully server-side: the Apify token lives in the backend,
+ * never the browser bundle. "Pull live signals" starts a Temporal
+ * ingestion run and polls it to completion.
+ *
+ * @param {{ scraping: boolean, scrapeStatus: string,
  *           onRefresh: () => void }} props
  */
-export default function DataSourcesPanel({
-  apifyToken,
-  setApifyToken,
-  scraping,
-  scrapeStatus,
-  onRefresh,
-}) {
-  const sources = [
-    { name:"GDELT news index", detail:"Kenya disease news — free, no key", ok:true, note:"ready" },
-    { name:"Apify · apidojo~tweet-scraper", detail:"X/Twitter signals (needs paid Apify plan)", ok:!!apifyToken, note: apifyToken ? "token from .env" : "no token" },
-  ];
-
+export default function DataSourcesPanel({ scraping, scrapeStatus, onRefresh }) {
   return (
     <div style={{ padding:"1rem" }}>
       <p style={{ margin:"0 0 10px", fontWeight:500, fontSize:13 }}>Live data sources</p>
       <p style={{ margin:"0 0 12px", fontSize:12, color:"var(--color-text-secondary)" }}>
-        “Pull live signals” queries every configured source and merges the results into the signal feed.
+        “Pull live signals” starts a server-side ingestion run; the signal feed reloads when it completes.
       </p>
 
       {/* Source status */}
       <div style={{ padding:"0.7rem", background:"var(--color-background-secondary)", borderRadius:"var(--border-radius-md)", marginBottom:10 }}>
         <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:500 }}>Sources</p>
-        {sources.map(s => (
+        {SOURCES.map(s => (
           <div key={s.name} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}>
-            <div style={{ width:7, height:7, borderRadius:"50%", flexShrink:0, background: s.ok ? "#27ae60" : "var(--color-border-secondary)" }} />
+            <div style={{ width:7, height:7, borderRadius:"50%", flexShrink:0, background:"#27ae60" }} />
             <div style={{ flex:1, minWidth:0 }}>
               <p style={{ margin:0, fontSize:12, fontWeight:500 }}>{s.name}</p>
               <p style={{ margin:0, fontSize:12, color:"var(--color-text-tertiary)" }}>{s.detail}</p>
@@ -51,22 +57,7 @@ export default function DataSourcesPanel({
         ))}
       </div>
 
-      {/* Apify token */}
-      <div style={{ marginBottom:10 }}>
-        <p style={{ margin:"0 0 4px", fontSize:12, display:"flex", alignItems:"center", gap:6 }}>
-          Apify API Token
-          {import.meta.env.VITE_APIFY_TOKEN && (
-            <span style={{ fontSize:12, fontFamily:"var(--font-mono)", padding:"1px 5px", borderRadius:3, background:"var(--color-background-success)", color:"var(--color-text-success)" }}>
-              loaded from .env
-            </span>
-          )}
-        </p>
-        <input type="password" value={apifyToken} onChange={e => setApifyToken(e.target.value)}
-          placeholder="apify_api_xxxxxxxxxxxx"
-          style={{ width:"100%", boxSizing:"border-box", fontFamily:"var(--font-mono)", fontSize:12 }} />
-      </div>
-
-      {/* Apify keywords */}
+      {/* Monitored Twitter keywords (configured backend-side) */}
       <div style={{ marginBottom:10 }}>
         <p style={{ margin:"0 0 6px", fontSize:12, fontWeight:500 }}>Twitter keywords (Apify)</p>
         <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>

@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
+
 import { DISEASES } from "../data/surveillance.js";
+import { apiEnabled, apiGet } from "../lib/api.js";
 import { panel } from "../lib/ui.js";
 
 /**
@@ -15,8 +18,21 @@ const DISEASE_PALETTE = [
  * leading disease so relative magnitude reads at a glance.
  */
 export default function DiseaseDistribution() {
-  const total = DISEASES.reduce((s, d) => s + d.total, 0);
-  const max = Math.max(...DISEASES.map(d => d.total));
+  const [diseases, setDiseases] = useState(DISEASES);
+
+  // Backend `/diseases` aggregates the signal feed; seed `DISEASES` is the
+  // offline fallback.
+  useEffect(() => {
+    if (!apiEnabled()) return;
+    let cancelled = false;
+    apiGet("/diseases")
+      .then(d => { if (!cancelled && Array.isArray(d) && d.length) setDiseases(d); })
+      .catch(err => console.error("Diseases fetch failed; using seed data:", err));
+    return () => { cancelled = true; };
+  }, []);
+
+  const total = diseases.reduce((s, d) => s + d.total, 0);
+  const max = Math.max(...diseases.map(d => d.total));
 
   return (
     <div style={{ ...panel, padding:"0.9rem", flex:1 }}>
@@ -24,12 +40,12 @@ export default function DiseaseDistribution() {
         <p style={{ margin:0, fontWeight:500, fontSize:13 }}>Disease distribution</p>
         <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--color-text-tertiary)" }}>{total} cases</span>
       </div>
-      {DISEASES.map((d, i) => {
+      {diseases.map((d, i) => {
         const color = DISEASE_PALETTE[i % DISEASE_PALETTE.length];
         const barPct = Math.round((d.total / max) * 100);
         const lead = i === 0;
         return (
-          <div key={d.name} style={{ marginBottom: i === DISEASES.length - 1 ? 0 : 12 }}>
+          <div key={d.name} style={{ marginBottom: i === diseases.length - 1 ? 0 : 12 }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:5 }}>
               <span style={{ display:"flex", alignItems:"center", gap:6, minWidth:0, fontSize:12 }}>
                 <span style={{ width:8, height:8, borderRadius:2, background:color, flexShrink:0 }} />
