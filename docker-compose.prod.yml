@@ -84,6 +84,17 @@ services:
       TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: zonoticwatch
       CORS_ORIGINS: https://watch.kadiri.app
+      # AI Signal Analyzer (Ollama Cloud). Interpolated from the repo-root
+      # .env synced to the server. OLLAMA_MODEL falls back if unset.
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:27b-cloud}
+      # Auth — see docs/refresh-access-control.md. SESSION_SECRET must be set
+      # for any real deployment; ADMIN_USERNAME/ADMIN_PASSWORD seed the first
+      # admin on initial startup and are ignored once the users table is non-empty.
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      COOKIE_SECURE: "true"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     command:
       ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:

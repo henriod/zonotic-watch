@@ -32,6 +32,7 @@ SCRAPE_KEYWORDS: list[str] = [
 TWITTER_HANDLES: list[str] = [
     "ntvkenya", "citizentvkenya", "KTNNewsKE", "CapitalFMKenya",
     "MOH_Kenya", "KEMRI_Kenya", "ILRI", "icipe",
+    "WHO", "AfricaCDC",
 ]
 
 # Zoonotic topic filter appended to the verified-accounts `from:` query.

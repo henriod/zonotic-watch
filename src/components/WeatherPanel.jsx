@@ -18,13 +18,13 @@ export default function WeatherPanel({ counties, weather }) {
           {hasLive ? "live · Open-Meteo" : "sample data"}
         </span>
       </p>
-      {counties.filter(c => c.risk > 0.5).sort((a,b) => b.risk - a.risk).map(c => {
+      {[...counties].sort((a,b) => (b.risk ?? 0) - (a.risk ?? 0)).map(c => {
         const wx = countyWeather(c, weather);
         return (
           <div key={c.id} style={{ padding:"0.7rem", background:"var(--color-background-secondary)", borderRadius:"var(--border-radius-md)", marginBottom:8 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
               <p style={{ margin:0, fontWeight:500, fontSize:12 }}>{c.name}</p>
-              <span style={{ fontSize:12, padding:"2px 6px", borderRadius:3, background:riskBg(c.risk), color: c.risk>=0.65?"var(--color-text-danger)":"var(--color-text-warning)" }}>
+              <span style={{ fontSize:12, padding:"2px 6px", borderRadius:3, background:riskBg(c.risk), color: c.risk>=0.85?"var(--color-text-danger)":c.risk>=0.45?"var(--color-text-warning)":"var(--color-text-success)" }}>
                 {Math.round(c.risk*100)}%
               </span>
             </div>

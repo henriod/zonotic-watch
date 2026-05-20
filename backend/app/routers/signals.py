@@ -14,9 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from temporalio.client import WorkflowExecutionStatus
 
 from app.config import get_settings
-from app.db.models import Signal
+from app.db.models import Signal, User
 from app.db.session import get_session
 from app.schemas.signal import SignalOut
+from app.security import require_user
 from app.temporal.client import get_temporal_client
 from app.temporal.workflows import IngestionWorkflow
 
@@ -43,8 +44,11 @@ async def list_signals(
 
 
 @router.post("/refresh", status_code=202)
-async def trigger_refresh() -> dict:
-    """Start an ingestion run; return immediately with workflow identifiers."""
+async def trigger_refresh(_user: User = Depends(require_user)) -> dict:
+    """Start an ingestion run; return immediately with workflow identifiers.
+
+    Login-gated — Apify calls cost money, so anonymous triggers are blocked.
+    """
     settings = get_settings()
     client = await get_temporal_client()
     workflow_id = f"ingest-{uuid4()}"

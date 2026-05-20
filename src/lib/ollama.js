@@ -1,19 +1,33 @@
 /**
- * Local LLM client — analyzes a signal for zoonotic disease indicators using
- * a model served by Ollama on the user's own machine.
+ * AI Signal Analyzer client.
  *
- * No API key, no cost, no data leaves the machine. Ollama allows CORS from
- * localhost origins by default, so the browser calls it directly.
+ * Routing:
+ *  - `VITE_ANALYZER=local`  → always hit the on-device Ollama at VITE_OLLAMA_URL
+ *  - `VITE_ANALYZER=cloud`  → always hit the backend's `/analyze` proxy
+ *  - unset (default)        → cloud when `VITE_API_BASE` is set, else local
  *
- * Setup: install Ollama (https://ollama.com), then `ollama pull gemma4`.
- * Override the URL / model via VITE_OLLAMA_URL and VITE_OLLAMA_MODEL in .env.
+ * The cloud path proxies through the backend so the OLLAMA_API_KEY stays
+ * server-side and never enters the JS bundle. The local path is for dev
+ * against a `gemma4:latest`-style model running on the developer's machine.
  */
 
-const OLLAMA_URL = import.meta.env.VITE_OLLAMA_URL || "http://localhost:11434";
+import { API_BASE, apiEnabled } from "./api.js";
 
-/** The model the analyzer uses — exported so the UI can label itself. */
-export const OLLAMA_MODEL =
-  import.meta.env.VITE_OLLAMA_MODEL || "gemma4:latest";
+const LOCAL_URL = import.meta.env.VITE_OLLAMA_URL || "http://localhost:11434";
+const LOCAL_MODEL = import.meta.env.VITE_OLLAMA_MODEL || "gemma4:latest";
+const MODE = (import.meta.env.VITE_ANALYZER || "").toLowerCase();
+
+/** Resolved at module load — explicit override wins, else infer from API_BASE. */
+const CLOUD =
+  MODE === "local" ? false : MODE === "cloud" ? true : apiEnabled();
+
+/** UI badge label — "cloud · Ollama" or "local · {model}". */
+export const ANALYZER_LABEL = CLOUD
+  ? "cloud · Ollama"
+  : `local · ${LOCAL_MODEL}`;
+
+/** True when calling the analyzer requires a logged-in backend session. */
+export const ANALYZER_REQUIRES_AUTH = CLOUD;
 
 const SYSTEM_PROMPT = `You are a WHO-trained zoonotic disease surveillance expert specializing in East Africa and Kenya.
 Analyze the social media or news signal for zoonotic disease indicators.
@@ -37,13 +51,38 @@ Respond with ONLY a JSON object — no preamble, no markdown — matching exactl
  * @returns {Promise<object>} parsed assessment JSON
  */
 export async function analyzeSignal(text, loc) {
+  return CLOUD ? analyzeRemote(text, loc) : analyzeLocal(text, loc);
+}
+
+async function analyzeRemote(text, loc) {
   let res;
   try {
-    res = await fetch(`${OLLAMA_URL}/api/chat`, {
+    res = await fetch(`${API_BASE}/analyze`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, loc }),
+    });
+  } catch {
+    throw new Error("Cannot reach the analyzer backend");
+  }
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(
+      detail?.detail || `Analyzer ${res.status} ${res.statusText}`
+    );
+  }
+  return res.json();
+}
+
+async function analyzeLocal(text, loc) {
+  let res;
+  try {
+    res = await fetch(`${LOCAL_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
+        model: LOCAL_MODEL,
         stream: false,
         format: "json",
         options: { temperature: 0.3 },
@@ -57,13 +96,13 @@ export async function analyzeSignal(text, loc) {
       }),
     });
   } catch {
-    throw new Error(`Cannot reach Ollama at ${OLLAMA_URL} — is it running?`);
+    throw new Error(`Cannot reach Ollama at ${LOCAL_URL} — is it running?`);
   }
 
   if (!res.ok) {
     throw new Error(
       res.status === 404
-        ? `Model "${OLLAMA_MODEL}" not found — run: ollama pull ${OLLAMA_MODEL}`
+        ? `Model "${LOCAL_MODEL}" not found — run: ollama pull ${LOCAL_MODEL}`
         : `Ollama ${res.status} ${res.statusText}`
     );
   }

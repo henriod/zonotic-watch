@@ -82,6 +82,16 @@ services:
       TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: zonoticwatch
       CORS_ORIGINS: http://localhost:5173
+      # AI Signal Analyzer (Ollama Cloud). Blank disables /analyze; dev can
+      # also leave VITE_API_BASE unset and run against local Ollama instead.
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:27b-cloud}
+      # Auth (invite-only login). COOKIE_SECURE is false in dev so the cookie
+      # sets over http://localhost; flip to true in any HTTPS deployment.
+      SESSION_SECRET: ${SESSION_SECRET:-dev-session-secret-change-me}
+      COOKIE_SECURE: "false"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme1234}
     command:
       ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     ports:

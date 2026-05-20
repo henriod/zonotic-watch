@@ -48,7 +48,7 @@ The migration from the original browser-only app is documented in `docs/backend-
 
 - `api.js` — thin backend client: `API_BASE` (from `VITE_API_BASE`), `apiEnabled()`, `apiGet()`, `apiPost()`. When no backend is configured, callers fall back to seed data.
 - `weather.js` — Open-Meteo live county weather, called **browser-direct** (free, CORS-OK).
-- `ollama.js` — local Ollama LLM for the AI Signal Analyzer (`/api/chat`, `format:"json"`), called **browser-direct** (localhost, no CORS/token issue).
+- `ollama.js` — AI Signal Analyzer client. When `VITE_API_BASE` is set, it POSTs to the backend's `/analyze` route (which proxies to Ollama Cloud with the API key kept server-side). When blank, it falls back to a local Ollama at `VITE_OLLAMA_URL` (`/api/chat`, `format:"json"`) for offline dev.
 - `risk.js` — risk/severity → color helpers.
 - `ui.js` — the shared `panel` card-surface style.
 
@@ -58,9 +58,11 @@ The **shared signal object** is `{ id, src, handle, text, loc, disease, conf, ti
 
 ### Backend (`backend/`)
 
-A FastAPI app over PostGIS, with Temporal for async ingestion. Layout: `app/{main,config}`, `app/db/` (async SQLAlchemy + ORM models), `app/schemas/` (Pydantic), `app/geo/` (`classify.py` keyword classifier — the Python port of the old `signals.js`; `geocode.py` county resolution), `app/routers/`, `app/temporal/` (client, worker, workflows, activities). `migrations/` holds Alembic revisions; `scripts/` holds one-off loaders.
+A FastAPI app over PostGIS, with Temporal for async ingestion. Layout: `app/{main,config,security}`, `app/db/` (async SQLAlchemy + ORM models), `app/schemas/` (Pydantic), `app/geo/` (`classify.py` keyword classifier — the Python port of the old `signals.js`; `geocode.py` county resolution), `app/routers/` (incl. `auth.py` for invite-only login), `app/temporal/` (client, worker, workflows, activities). `migrations/` holds Alembic revisions; `scripts/` holds one-off loaders.
 
-- **HTTP endpoints are pure DB reads** (`/counties`, `/counties.geojson`, `/signals`) or *trigger* a workflow and return immediately (`POST /refresh`). Slow/rate-limited work never runs in a request handler.
+**Auth:** invite-only login (no public signup) — `app/routers/auth.py` issues an HttpOnly session cookie (`zw_session`), `app/security.py` exposes `require_user`/`require_admin` dependencies, and `app/main.py` lifespan seeds the first admin from `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars when the `users` table is empty. `POST /refresh` and `POST /analyze` (both costly) are login-gated; all read endpoints stay public. See `docs/refresh-access-control.md`.
+
+- **HTTP endpoints are pure DB reads** (`/counties`, `/counties.geojson`, `/signals`, `/trend`, `/diseases`, `/risk`) or *trigger* a workflow and return immediately (`POST /refresh`). Slow/rate-limited work never runs in a request handler. Reads are anonymous; `POST /refresh` and `POST /analyze` require a logged-in session.
 - **Ingestion** is the `IngestionWorkflow` Temporal workflow: GDELT and Apify run as independent activity branches (one source failing doesn't abort the other); results are classified, geocoded, and upserted into `signals`. GDELT is called server-to-server (no CORS); the Apify token lives only in backend settings.
 - See `backend/README.md` for the endpoint table and run instructions.
 
@@ -69,7 +71,7 @@ A FastAPI app over PostGIS, with Temporal for async ingestion. Layout: `app/{mai
 `src/data/surveillance.js` is the **offline fallback** seed (used when `VITE_API_BASE` is blank). With a backend configured:
 
 - **Live via the backend:** the signal feed (`/signals` — GDELT + Apify ingestion) and the county polygons + risk tint (`/counties.geojson`).
-- **Still browser-direct:** county weather (Open-Meteo) and the AI analyzer (Ollama).
+- **Still browser-direct:** county weather (Open-Meteo). The AI analyzer is browser-direct only in offline dev — with `VITE_API_BASE` set it routes through the backend's `/analyze` proxy so the Ollama Cloud API key never reaches the JS bundle.
 - **Still static seed:** the 15-day trend chart and the disease-distribution breakdown. The **county risk map** currently shows risk *seeded* into the `county_risk` table — turning raw report volume into computed per-county risk is Phase 2 (`docs/backend-plan.md` steps 7–9), not yet done.
 - Map markers and the metric-card totals still derive from the `COUNTIES` seed array — not yet cut over to `/counties`.
 

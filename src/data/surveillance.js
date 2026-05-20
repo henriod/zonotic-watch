@@ -80,6 +80,8 @@ export const TWITTER_HANDLES = [
   "KEMRI_Kenya",    // Kenya Medical Research Institute
   "ILRI",           // International Livestock Research Institute
   "icipe",          // Intl Centre of Insect Physiology & Ecology
+  "WHO",            // World Health Organization
+  "AfricaCDC",      // Africa Centres for Disease Control and Prevention
 ];
 
 /** Disease distribution breakdown (example baseline model priors for Kenya context). */

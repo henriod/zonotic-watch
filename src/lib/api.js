@@ -17,7 +17,7 @@ export function apiEnabled() {
 
 /** GET `path` from the backend and parse the JSON response body. */
 export async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
   if (!res.ok) throw new Error(`GET ${path} → HTTP ${res.status}`);
   return res.json();
 }
@@ -26,6 +26,7 @@ export async function apiGet(path) {
 export async function apiPost(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
+    credentials: "include",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });

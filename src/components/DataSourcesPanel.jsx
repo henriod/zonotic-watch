@@ -1,4 +1,5 @@
 import { SCRAPE_KEYWORDS, TWITTER_HANDLES } from "../data/surveillance.js";
+import { useAuth } from "../lib/auth.jsx";
 
 /** Ingestion sources — all now run server-side in the Temporal workflow. */
 const SOURCES = [
@@ -35,6 +36,8 @@ const PIPELINE = [
  *           onRefresh: () => void }} props
  */
 export default function DataSourcesPanel({ scraping, scrapeStatus, onRefresh }) {
+  const { user } = useAuth();
+  const authed = !!user;
   return (
     <div style={{ padding:"1rem" }}>
       <p style={{ margin:"0 0 10px", fontWeight:500, fontSize:13 }}>Live data sources</p>
@@ -77,10 +80,17 @@ export default function DataSourcesPanel({ scraping, scrapeStatus, onRefresh }) 
         </div>
       </div>
 
-      <button onClick={onRefresh} disabled={scraping}
-        style={{ width:"100%", padding:"0.55rem", borderRadius:"var(--border-radius-md)", border:"0.5px solid var(--color-border-secondary)", background: scraping ? "var(--color-background-secondary)" : "var(--color-background-info)", color: scraping ? "var(--color-text-tertiary)" : "var(--color-text-info)", cursor: scraping ? "not-allowed" : "pointer", fontWeight:500, fontSize:13, marginBottom:8 }}>
-        {scraping ? "Pulling…" : "Pull live signals ↗"}
-      </button>
+      {authed ? (
+        <button onClick={onRefresh} disabled={scraping}
+          style={{ width:"100%", padding:"0.55rem", borderRadius:"var(--border-radius-md)", border:"0.5px solid var(--color-border-secondary)", background: scraping ? "var(--color-background-secondary)" : "var(--color-background-info)", color: scraping ? "var(--color-text-tertiary)" : "var(--color-text-info)", cursor: scraping ? "not-allowed" : "pointer", fontWeight:500, fontSize:13, marginBottom:8 }}>
+          {scraping ? "Pulling…" : "Pull live signals ↗"}
+        </button>
+      ) : (
+        <a href="/login?next=/" style={{ display:"block", textAlign:"center", padding:"0.55rem", borderRadius:"var(--border-radius-md)", border:"0.5px solid var(--color-border-secondary)", background:"var(--color-background-secondary)", color:"var(--color-text-secondary)", textDecoration:"none", fontWeight:500, fontSize:13, marginBottom:8 }}>
+          <i className="ti ti-lock" style={{ fontSize:13, marginRight:5 }} aria-hidden="true" />
+          Sign in to pull live signals
+        </a>
+      )}
       {scrapeStatus && <p style={{ margin:0, fontSize:12, color:"var(--color-text-secondary)", fontFamily:"var(--font-mono)" }}>{scrapeStatus}</p>}
 
       <div style={{ marginTop:12, padding:"0.7rem", background:"var(--color-background-secondary)", borderRadius:"var(--border-radius-md)" }}>

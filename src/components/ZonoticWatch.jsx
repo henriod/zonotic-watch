@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { COUNTIES, SIGNALS } from "../data/surveillance.js";
 import { fetchCountyWeather } from "../lib/weather.js";
 import { apiEnabled, apiGet, apiPost } from "../lib/api.js";
+import { useAuth } from "../lib/auth.jsx";
 import { panel } from "../lib/ui.js";
 
 import DashboardHeader from "./DashboardHeader.jsx";
@@ -15,12 +16,14 @@ import DiseaseDistribution from "./DiseaseDistribution.jsx";
 import HumanVsLivestock from "./HumanVsLivestock.jsx";
 import TrendChart from "./TrendChart.jsx";
 import SignalAnalyzer from "./SignalAnalyzer.jsx";
+import UserAdmin from "./UserAdmin.jsx";
 
-/** Center-panel tabs: [id, icon, label]. */
+/** Center-panel tabs: [id, icon, label, adminOnly]. */
 const TABS = [
   ["map", "ti-map", "Spatial View"],
   ["weather", "ti-cloud", "Weather Risk"],
   ["config", "ti-settings", "Data Sources"],
+  ["users", "ti-users", "Users", true],
 ];
 
 /**
@@ -29,6 +32,9 @@ const TABS = [
  * feature panels; each panel lives in its own component file.
  */
 export default function ZonoticWatch() {
+  const { user, logout } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const visibleTabs = TABS.filter(([, , , adminOnly]) => !adminOnly || isAdmin);
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState("map");
   const [analysisText, setAnalysisText] = useState("");
@@ -147,6 +153,8 @@ export default function ZonoticWatch() {
         signalCount={signals.length}
         scanTime={scanTime}
         pulse={pulse}
+        user={user}
+        onLogout={logout}
       />
 
       <MetricCards
@@ -168,7 +176,7 @@ export default function ZonoticWatch() {
         {/* ── CENTER: Map / Weather / Config tabs ── */}
         <div style={{ ...panel, overflow:"hidden" }}>
           <div style={{ display:"flex", borderBottom:"0.5px solid var(--color-border-tertiary)" }}>
-            {TABS.map(([t, ic, lbl]) => (
+            {visibleTabs.map(([t, ic, lbl]) => (
               <button key={t} onClick={() => setTab(t)} style={{
                 flex:1, padding:"0.55rem", fontSize:12, fontWeight: tab===t ? 500 : 400,
                 background: tab===t ? "var(--color-background-secondary)" : "transparent",
@@ -200,6 +208,7 @@ export default function ZonoticWatch() {
               onRefresh={handleRefresh}
             />
           )}
+          {tab === "users" && isAdmin && <UserAdmin currentUser={user} />}
         </div>
 
         {/* ── RIGHT: Disease breakdown ── */}
