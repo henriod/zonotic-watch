@@ -1,0 +1,13 @@
+# Build context trimming for Dockerfile.frontend (context = repo root).
+# The frontend build only needs package*.json, vite.config.js, index.html,
+# eslint.config.js, src/ and public/.
+node_modules
+dist
+.git
+backend
+docs
+.claude
+.env
+.env.example
+reso.json
+*.md

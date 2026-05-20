@@ -1,0 +1,140 @@
+# ZonoticWatch Kenya — production stack.
+#
+# Runs alongside other apps on the host. Ports 80/443 belong to the shared
+# `pemost` Traefik; this stack publishes no public ports. The `frontend`
+# and `backend` containers join that Traefik's network (`edge`) so it can
+# route watch.kadiri.app to them. Backend is also bound to 127.0.0.1:8000
+# on the host for local debugging only.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# After first start, initialise the DB:
+#   docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
+#   docker compose -f docker-compose.prod.yml exec backend python -m scripts.load_counties
+#   docker compose -f docker-compose.prod.yml exec backend python -m scripts.seed_sample_data
+name: zonoticwatch
+
+services:
+  # Named uniquely (not plain `postgres`): the backend joins the shared
+  # `edge` network, where the pemost stack's own `postgres` service answers
+  # to that hostname too. A distinct name avoids the DNS collision.
+  zw-postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: zonotic
+      POSTGRES_PASSWORD: zonotic
+      POSTGRES_DB: zonotic
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zonotic -d zonotic"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  temporal:
+    image: temporalio/auto-setup:1.25.2
+    restart: unless-stopped
+    depends_on:
+      zw-postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: zonotic
+      POSTGRES_PWD: zonotic
+      POSTGRES_SEEDS: zw-postgres
+    networks:
+      - internal
+    healthcheck:
+      test:
+        ["CMD", "tctl", "--address", "temporal:7233", "--namespace", "default",
+         "namespace", "describe"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    networks:
+      - internal
+
+  backend:
+    build: ./backend
+    image: zonoticwatch-backend
+    container_name: zonotic-backend
+    restart: unless-stopped
+    depends_on:
+      zw-postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://zonotic:zonotic@zw-postgres:5432/zonotic
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: zonoticwatch
+      CORS_ORIGINS: https://watch.kadiri.app
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      # Loopback only — for host-side debugging, not public.
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # GADM GeoJSON, read-only — consumed by scripts/load_counties.py.
+      - ./public/data:/app/data:ro
+    networks:
+      - internal
+      - edge
+
+  worker:
+    build: ./backend
+    image: zonoticwatch-backend
+    container_name: zonotic-worker
+    restart: unless-stopped
+    depends_on:
+      zw-postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://zonotic:zonotic@zw-postgres:5432/zonotic
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: zonoticwatch
+      GDELT_API_BASE: https://api.gdeltproject.org
+      # Interpolated from the repo-root .env synced to the server.
+      APIFY_TOKEN: ${APIFY_TOKEN:-}
+    command: ["python", "-m", "app.temporal.worker"]
+    networks:
+      - internal
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE: /api
+    image: zonoticwatch-frontend
+    container_name: zonotic-frontend
+    restart: unless-stopped
+    networks:
+      - edge
+
+volumes:
+  pgdata:
+
+networks:
+  internal:
+  edge:
+    external: true
+    name: pemost_core_api_default

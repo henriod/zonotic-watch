@@ -136,6 +136,79 @@ panel shows a clear error.
 > risk **map** still uses sample data — turning raw report/tweet volume into
 > per-county risk scores needs a real model, which is out of scope here.
 
+## Production deployment
+
+The app is deployed at **https://watch.kadiri.app** on a shared server that
+already runs other applications. The whole stack — Postgres/PostGIS,
+Temporal (+ UI), the FastAPI backend, the ingestion worker, and the
+nginx-served React build — runs from `docker-compose.prod.yml`.
+
+### Deployment artifacts
+
+| File                     | Purpose                                                        |
+| ------------------------ | -------------------------------------------------------------- |
+| `docker-compose.prod.yml`| Production stack (6 services, project name `zonoticwatch`)     |
+| `Dockerfile.frontend`    | Multi-stage build: Vite bundle → nginx (`VITE_API_BASE=/api`)  |
+| `nginx.conf`             | SPA history fallback + static-asset caching                    |
+| `.dockerignore`          | Trims the frontend build context                               |
+
+### How it fits on the shared server
+
+Ports 80/443 belong to another app's **Traefik** reverse proxy, so
+ZonoticWatch publishes **no public ports**. Instead:
+
+- The `frontend` and `backend` containers join that Traefik's Docker
+  network (the external network `pemost_core_api_default`), so Traefik can
+  reach them by name (`zonotic-frontend`, `zonotic-backend`).
+- Two routers are added to that Traefik's file config for
+  `watch.kadiri.app`: `/api/*` is `StripPrefix`-ed and routed to the
+  FastAPI backend; every other path serves the static dashboard. HTTPS is
+  issued via the existing Let's Encrypt resolver.
+- The database service is named **`zw-postgres`** (not `postgres`) — the
+  backend sits on the shared Traefik network, where the other app's own
+  `postgres` service would otherwise collide on that hostname.
+
+### First-time deploy
+
+```bash
+# 1. Sync the repo to the server (includes .env for APIFY_TOKEN;
+#    excludes node_modules / .git / dist).
+rsync -az --delete \
+  --exclude node_modules --exclude .git --exclude dist --exclude .claude \
+  --exclude __pycache__ \
+  ./ root@<server>:/root/zonoticwatch/
+
+# 2. Build images and start the stack.
+ssh root@<server> 'cd /root/zonoticwatch && \
+  docker compose -f docker-compose.prod.yml up -d --build'
+
+# 3. Initialise the database (run once).
+docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
+docker compose -f docker-compose.prod.yml exec backend python -m scripts.load_counties
+docker compose -f docker-compose.prod.yml exec backend python -m scripts.seed_sample_data
+```
+
+Then point the subdomain's DNS **A record** at the server and add the
+`watch.kadiri.app` routers/middleware/services to the shared Traefik
+config (it watches its config file, so the change hot-reloads — back the
+file up first).
+
+### Redeploying after code changes
+
+```bash
+rsync -az --delete --exclude node_modules --exclude .git --exclude dist \
+  ./ root@<server>:/root/zonoticwatch/
+ssh root@<server> 'cd /root/zonoticwatch && \
+  docker compose -f docker-compose.prod.yml up -d --build'
+```
+
+Re-run `alembic upgrade head` if there are new migrations. The Temporal
+worker does **not** hot-reload — `up -d --build` recreates it.
+
+> The AI Signal Analyzer calls a **local** Ollama, so it does not work for
+> remote users in this deployment; it fails gracefully. The signal feed,
+> county map, and weather all work.
+
 ## Design tokens
 
 All colors, fonts, and radii are defined as CSS custom properties in

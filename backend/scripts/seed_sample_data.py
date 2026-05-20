@@ -10,12 +10,28 @@ get replaced by computed values in Phase 2 (rollout step 9).
 
 import asyncio
 import json
+import math
 import sys
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import text
 
 from app.db.session import async_session_maker, engine
+
+# Weeks of history to seed for the case-trend chart. The /trend endpoint
+# buckets county_week_features by week_start, so one week == one chart
+# point; seeding many weeks gives the chart a real trend line instead of
+# a single dot.
+HISTORY_WEEKS = 12
+
+
+def _week_factor(w: int) -> float:
+    """Per-week scaling for seeded case counts (w=0 oldest .. newest).
+
+    A gentle upward trend — recent weeks busier — with a sinusoidal wobble
+    so the line has shape instead of climbing in a straight line."""
+    base = 0.45 + 0.55 * (w / (HISTORY_WEEKS - 1))
+    return round(base + 0.15 * math.sin(w * 1.3), 3)
 
 # COUNTIES seed — (id, risk, human, animal, disease, temp, humidity, rain).
 COUNTIES = [
@@ -140,7 +156,8 @@ async def main() -> None:
                 },
             )
 
-        for cid, risk, human, animal, disease, temp, humidity, rain in COUNTIES:
+        # county_risk: current week only — the map reads the latest week.
+        for cid, risk, *_ in COUNTIES:
             await session.execute(
                 UPSERT_RISK,
                 {
@@ -150,20 +167,29 @@ async def main() -> None:
                     "computed_at": now,
                 },
             )
-            await session.execute(
-                UPSERT_FEATURES,
-                {
-                    "county_id": cid,
-                    "week_start": week_start,
-                    "signal_count": None,
-                    "human": human,
-                    "animal": animal,
-                    "breakdown": json.dumps({disease: human + animal}),
-                    "temp": temp,
-                    "humidity": humidity,
-                    "rain": rain,
-                },
-            )
+
+        # county_week_features: HISTORY_WEEKS of weekly history so the
+        # /trend chart renders a series rather than a single point.
+        for w in range(HISTORY_WEEKS):
+            wk = week_start - timedelta(weeks=HISTORY_WEEKS - 1 - w)
+            factor = _week_factor(w)
+            for cid, _risk, human, animal, disease, temp, humidity, rain in COUNTIES:
+                h = max(0, round(human * factor))
+                a = max(0, round(animal * factor))
+                await session.execute(
+                    UPSERT_FEATURES,
+                    {
+                        "county_id": cid,
+                        "week_start": wk,
+                        "signal_count": None,
+                        "human": h,
+                        "animal": a,
+                        "breakdown": json.dumps({disease: h + a}),
+                        "temp": temp,
+                        "humidity": humidity,
+                        "rain": rain,
+                    },
+                )
         await session.commit()
 
         signals_n = (
@@ -178,8 +204,13 @@ async def main() -> None:
     await engine.dispose()
 
     print(f"seeded: signals={signals_n}  county_risk={risk_n}  "
-          f"county_week_features={feat_n}  (week_start={week_start})")
-    if signals_n < len(SIGNALS) or risk_n < len(COUNTIES) or feat_n < len(COUNTIES):
+          f"county_week_features={feat_n}  "
+          f"(weeks={HISTORY_WEEKS}, latest week_start={week_start})")
+    if (
+        signals_n < len(SIGNALS)
+        or risk_n < len(COUNTIES)
+        or feat_n < len(COUNTIES) * HISTORY_WEEKS
+    ):
         print("  ERROR: row counts below expected.")
         sys.exit(1)
     print("OK — sample data seeded.")
