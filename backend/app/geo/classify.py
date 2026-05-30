@@ -27,6 +27,9 @@ SCRAPE_KEYWORDS: list[str] = [
     "ugonjwa wa mifugo Kenya",
     "(Garissa OR Wajir OR Turkana OR Marsabit) livestock disease",
     "(flooding OR heavy rains OR El Nino) Kenya disease outbreak",
+    # Filovirus watch — Kenya-only mentions (importation / PoE screening).
+    '(Ebola OR Marburg OR "viral hemorrhagic fever") Kenya',
+    "Kenya Ebola (screening OR importation OR border OR quarantine OR suspected)",
 ]
 
 TWITTER_HANDLES: list[str] = [
@@ -38,13 +41,17 @@ TWITTER_HANDLES: list[str] = [
 # Zoonotic topic filter appended to the verified-accounts `from:` query.
 HANDLE_TOPIC = (
     '(anthrax OR zoonotic OR "rift valley fever" OR RVF OR rabies OR '
-    'brucellosis OR "q fever" OR outbreak OR livestock OR "animal disease")'
+    'brucellosis OR "q fever" OR outbreak OR livestock OR "animal disease" OR '
+    'ebola OR marburg OR "viral hemorrhagic fever")'
 )
 
 # ── GDELT source query (was src/lib/gdelt.js) ────────────────────────────
+# Kenya-scoped: filovirus articles are only ingested when they mention Kenya
+# (importation cases, PoE screening) — not the wider regional outbreak feed.
 GDELT_QUERY = (
     'Kenya (anthrax OR zoonotic OR "rift valley fever" OR brucellosis OR '
-    'rabies OR "q fever" OR "livestock disease" OR "animal disease") '
+    'rabies OR "q fever" OR "livestock disease" OR "animal disease" OR '
+    'ebola OR marburg OR "viral hemorrhagic fever") '
     "sourcelang:eng"
 )
 
@@ -56,6 +63,17 @@ DISEASE_KEYWORDS: dict[str, list[str]] = {
     "Rabies": ["rabies", "dog bite", "dog attack", "rabid"],
     "Q Fever": ["q fever", "coxiella"],
     "Crimean-Congo HF": ["crimean-congo", "crimean congo", "cchf"],
+    # Filoviruses — primarily human-to-human (bat/bushmeat reservoir). The
+    # human-vs-livestock split treats these as human-dominant; see
+    # _HUMAN_DISEASES in app/temporal/activities.py.
+    "Ebola": ["ebola", "ebolavirus", "sudan virus", "evd"],
+    "Marburg": ["marburg", "marburgvirus", "mvd"],
+    # Catch-all for hemorrhagic-fever reports that don't name the agent.
+    # Listed last so a specific filovirus above wins on equal keyword hits.
+    "Viral Hemorrhagic Fever": [
+        "viral hemorrhagic fever", "viral haemorrhagic fever",
+        "hemorrhagic fever", "haemorrhagic fever", "vhf",
+    ],
 }
 
 TOPIC_TERMS: list[str] = [
@@ -63,6 +81,7 @@ TOPIC_TERMS: list[str] = [
     "goat", "sheep", "camel", "poultry", "animal", "carcass", "vaccin",
     "quarantine", "veterinar", "abattoir", "slaughter", "spillover",
     "mifugo", "ugonjwa", "wanyama", "ng'ombe",
+    "ebola", "marburg", "hemorrhagic", "haemorrhagic",
 ]
 
 SEVERITY_TIERS: list[tuple[str, list[str]]] = [

@@ -318,6 +318,10 @@ _ANIMAL_RE = (
     r"livestock|cattle|cows?|goats?|sheep|camels?|herds?|carcass|poultry|"
     r"animals?|flocks?|abattoir|mifugo|wanyama|ng'ombe"
 )
+# Filoviruses are human-dominant (human-to-human outbreaks): count them as
+# human cases even when the report wording doesn't trip _HUMAN_RE. Must match
+# the disease labels in app/geo/classify.py DISEASE_KEYWORDS.
+_HUMAN_DISEASES = ["Ebola", "Marburg", "Viral Hemorrhagic Fever"]
 
 # Zero the signal-derived columns before re-aggregating, so counties/weeks
 # that no longer have signals (or were only ever seeded) drop to 0 instead
@@ -342,7 +346,9 @@ _REBUILD_WEEK_FEATURES = text(
     agg AS (
         SELECT county_id, wk,
                count(*) AS signal_count,
-               count(*) FILTER (WHERE text ~* :human_re)  AS human_cases,
+               count(*) FILTER (
+                   WHERE text ~* :human_re OR disease = ANY(:human_diseases)
+               ) AS human_cases,
                count(*) FILTER (WHERE text ~* :animal_re) AS animal_cases,
                avg({_SEVERITY_SCORE}) AS mean_severity
         FROM per_signal
@@ -386,7 +392,11 @@ async def rebuild_week_features() -> int:
         await session.execute(_RESET_WEEK_FEATURES)
         result = await session.execute(
             _REBUILD_WEEK_FEATURES,
-            {"human_re": _HUMAN_RE, "animal_re": _ANIMAL_RE},
+            {
+                "human_re": _HUMAN_RE,
+                "animal_re": _ANIMAL_RE,
+                "human_diseases": _HUMAN_DISEASES,
+            },
         )
         await session.commit()
         rows = result.rowcount or 0
