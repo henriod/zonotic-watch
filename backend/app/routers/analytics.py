@@ -1,7 +1,6 @@
 """Analytics read endpoints — case trend and disease distribution.
 
-`/trend` aggregates `county_week_features` (the analytics join point);
-`/diseases` aggregates `signals` directly. Both replace the static
+`/trend` and `/diseases` both aggregate `signals` directly. Both replace the static
 `TREND` / `DISEASES` seed arrays.
 """
 
@@ -13,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.schemas.analytics import CountyRiskOut, DiseaseSlice, TrendPoint
+from app.temporal.activities import _ANIMAL_RE, _HUMAN_DISEASES, _HUMAN_RE
 
 router = APIRouter(tags=["analytics"])
 
@@ -28,25 +28,36 @@ async def trend(
     days: int = Query(120, ge=7, le=9000, description="lookback window in days"),
     session: AsyncSession = Depends(get_session),
 ) -> list[TrendPoint]:
-    """Weekly human / animal / RVF case trend over `county_week_features`."""
+    """Weekly human / animal / RVF case trend over all `signals`.
+
+    Reads `signals`, not `county_week_features`: most live reports are
+    national ("Kenya", no county) and the per-county table drops them.
+    Human/animal splits use the same regexes as `rebuild_week_features`.
+    """
     rows = (
         await session.execute(
             text(
                 """
-                SELECT week_start,
-                       COALESCE(sum(human_cases), 0)  AS human,
-                       COALESCE(sum(animal_cases), 0) AS animal,
-                       COALESCE(sum(
-                           COALESCE((disease_breakdown ->> 'Rift Valley Fever')::int, 0)
-                         + COALESCE((disease_breakdown ->> 'RVF')::int, 0)
-                       ), 0) AS rvf
-                FROM county_week_features
-                WHERE week_start >= current_date - make_interval(days => :days)
+                SELECT date_trunc('week', event_time)::date AS week_start,
+                       count(*) FILTER (
+                           WHERE text ~* :human_re OR disease = ANY(:human_diseases)
+                       ) AS human,
+                       count(*) FILTER (WHERE text ~* :animal_re) AS animal,
+                       count(*) FILTER (
+                           WHERE disease IN ('Rift Valley Fever', 'RVF')
+                       ) AS rvf
+                FROM signals
+                WHERE event_time >= current_date - make_interval(days => :days)
                 GROUP BY week_start
                 ORDER BY week_start
                 """
             ),
-            {"days": days},
+            {
+                "days": days,
+                "human_re": _HUMAN_RE,
+                "animal_re": _ANIMAL_RE,
+                "human_diseases": _HUMAN_DISEASES,
+            },
         )
     ).mappings().all()
     return [

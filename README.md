@@ -167,14 +167,30 @@ repo) that owns host ports 80/443 for every app:
 - The `proxy` network must exist before this stack starts
   (`docker network create proxy`).
 
+### Server state
+
+- Host: `root@213.199.33.173` (SSH key auth), app dir `/root/zonoticwatch/`.
+- **The server's `/root/zonoticwatch/.env` is the source of truth for
+  production.** It differs from any developer's local `.env` (production
+  `ADMIN_*`, `SESSION_SECRET`, `APIFY_TOKEN`, Ollama settings). Never sync a
+  local `.env` over it: every rsync below uses `--exclude .env`, and
+  `--delete` leaves excluded files alone.
+- To change a production env var, edit it on the server
+  (`ssh root@213.199.33.173 'nano /root/zonoticwatch/.env'`), then
+  `docker compose -f docker-compose.prod.yml up -d` to recreate the
+  affected containers.
+- Before any rsync, preview it with `-n --itemize-changes` to see exactly
+  what will change on the server.
+
 ### First-time deploy
 
 ```bash
-# 1. Sync the repo to the server (includes .env for APIFY_TOKEN;
-#    excludes node_modules / .git / dist).
+# 1. Sync the repo to the server (excludes node_modules / .git / dist).
+#    On the very first deploy only, copy .env separately:
+#    scp .env root@<server>:/root/zonoticwatch/.env
 rsync -az --delete \
   --exclude node_modules --exclude .git --exclude dist --exclude .claude \
-  --exclude __pycache__ \
+  --exclude __pycache__ --exclude .DS_Store --exclude .env \
   ./ root@<server>:/root/zonoticwatch/
 
 # 2. Build images and start the stack.
@@ -193,11 +209,17 @@ start, so Traefik's Let's Encrypt HTTP challenge succeeds.
 ### Redeploying after code changes
 
 ```bash
-rsync -az --delete --exclude node_modules --exclude .git --exclude dist \
+rsync -az --delete \
+  --exclude node_modules --exclude .git --exclude dist --exclude .claude \
+  --exclude __pycache__ --exclude .DS_Store --exclude .env \
   ./ root@<server>:/root/zonoticwatch/
 ssh root@<server> 'cd /root/zonoticwatch && \
   docker compose -f docker-compose.prod.yml up -d --build'
 ```
+
+For a backend-only change, copying the changed files and rebuilding just
+that service is enough (and avoids touching anything else):
+`docker compose -f docker-compose.prod.yml up -d --build backend`.
 
 Re-run `alembic upgrade head` if there are new migrations. The Temporal
 worker does **not** hot-reload — `up -d --build` recreates it.
