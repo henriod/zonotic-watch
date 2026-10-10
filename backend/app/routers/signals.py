@@ -6,12 +6,12 @@ polls its status — no slow work ever runs inside an HTTP handler.
 """
 
 from datetime import datetime
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from temporalio.client import WorkflowExecutionStatus
+from temporalio.common import WorkflowIDConflictPolicy
 
 from app.config import get_settings
 from app.db.models import Signal, User
@@ -51,11 +51,14 @@ async def trigger_refresh(_user: User = Depends(require_user)) -> dict:
     """
     settings = get_settings()
     client = await get_temporal_client()
-    workflow_id = f"ingest-{uuid4()}"
+    # Single-flight: one fixed id + USE_EXISTING means repeat clicks while a
+    # run is in progress attach to it instead of launching another paid run.
+    workflow_id = "ingest-manual"
     handle = await client.start_workflow(
         IngestionWorkflow.run,
         id=workflow_id,
         task_queue=settings.temporal_task_queue,
+        id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
     )
     return {"workflow_id": workflow_id, "run_id": handle.first_execution_run_id}
 

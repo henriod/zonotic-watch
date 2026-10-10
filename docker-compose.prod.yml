@@ -87,7 +87,7 @@ services:
       # Auth — see docs/refresh-access-control.md. SESSION_SECRET must be set
       # for any real deployment; ADMIN_USERNAME/ADMIN_PASSWORD seed the first
       # admin on initial startup and are ignored once the users table is non-empty.
-      SESSION_SECRET: ${SESSION_SECRET:-}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set in .env}
       COOKIE_SECURE: "true"
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
@@ -104,7 +104,6 @@ services:
       - edge
 
   worker:
-    build: ./backend
     image: zonoticwatch-backend
     container_name: zonotic-worker
     restart: unless-stopped

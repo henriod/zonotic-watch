@@ -7,6 +7,7 @@ hashing passwords and resolving the current user from the session.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 import bcrypt
@@ -35,6 +36,17 @@ def verify_password(plain: str, hashed: str) -> bool:
         return bcrypt.checkpw(_to72(plain), hashed.encode("utf-8"))
     except ValueError:
         return False
+
+
+# Verified against when the username doesn't exist, so unknown and known
+# users take the same bcrypt time (no username-enumeration timing leak).
+_DUMMY_HASH = hash_password("dummy-password-for-timing")
+
+
+async def verify_password_async(plain: str, hashed: str | None) -> bool:
+    """bcrypt is CPU-bound (~250ms); run it off the event loop."""
+    ok = await asyncio.to_thread(verify_password, plain, hashed or _DUMMY_HASH)
+    return ok and hashed is not None
 
 
 async def current_user(

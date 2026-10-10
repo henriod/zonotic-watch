@@ -53,6 +53,13 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    # cookie_secure marks a real (HTTPS) deployment: never sign sessions with
+    # an empty or default key there - anyone could forge an admin cookie.
+    if settings.cookie_secure and (
+        len(settings.session_secret) < 32
+        or settings.session_secret == "dev-only-change-me-in-prod"
+    ):
+        raise RuntimeError("SESSION_SECRET must be set (32+ chars) in production")
     app = FastAPI(
         title="ZonoticWatch Kenya API", version="0.2.0", lifespan=lifespan
     )

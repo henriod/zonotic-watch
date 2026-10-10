@@ -27,7 +27,7 @@ from app.security import (
     hash_password,
     require_admin,
     require_user,
-    verify_password,
+    verify_password_async,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -44,7 +44,9 @@ async def login(
             select(User).where(User.username == payload.username)
         )
     ).scalar_one_or_none()
-    if user is None or not verify_password(payload.password, user.password_hash):
+    if not await verify_password_async(
+        payload.password, user.password_hash if user else None
+    ):
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, "Invalid username or password"
         )

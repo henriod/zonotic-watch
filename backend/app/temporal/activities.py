@@ -113,11 +113,12 @@ async def fetch_apify(max_items: int) -> list[dict]:
         froms = " OR ".join(f"from:{h}" for h in TWITTER_HANDLES)
         terms.append(f"({froms}) {HANDLE_TOPIC}")
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    # Token goes in a header, never the URL: httpx logs full URLs at INFO.
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(timeout=60.0, headers=headers) as client:
         # 1. Start the actor run.
         res = await client.post(
             f"{_APIFY_BASE}/acts/{_APIFY_ACTOR}/runs",
-            params={"token": token},
             json={
                 "searchTerms": terms,
                 "maxItems": max_items,
@@ -138,7 +139,6 @@ async def fetch_apify(max_items: int) -> list[dict]:
             await asyncio.sleep(4)
             res = await client.get(
                 f"{_APIFY_BASE}/acts/{_APIFY_ACTOR}/runs/{run_id}",
-                params={"token": token},
             )
             res.raise_for_status()
             status = res.json()["data"]["status"]
@@ -149,7 +149,7 @@ async def fetch_apify(max_items: int) -> list[dict]:
         # 3. Pull dataset items.
         res = await client.get(
             f"{_APIFY_BASE}/datasets/{run['defaultDatasetId']}/items",
-            params={"token": token, "clean": "true"},
+            params={"clean": "true"},
         )
         res.raise_for_status()
         items = res.json()

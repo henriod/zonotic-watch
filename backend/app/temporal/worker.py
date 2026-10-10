@@ -16,6 +16,9 @@ from app.temporal import activities, workflows
 from app.temporal.client import get_temporal_client
 
 logging.basicConfig(level=logging.INFO)
+# httpx logs every request URL at INFO; keep it quiet so no credential in a
+# URL can ever reach the logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("zonoticwatch.worker")
 
 
