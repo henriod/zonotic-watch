@@ -1,10 +1,8 @@
 # ZonoticWatch Kenya — production stack.
 #
-# Runs alongside other apps on the host. Ports 80/443 belong to the shared
-# `pemost` Traefik; this stack publishes no public ports. The `frontend`
-# and `backend` containers join that Traefik's network (`edge`) so it can
-# route watch.kadiri.app to them. Backend is also bound to 127.0.0.1:8000
-# on the host for local debugging only.
+# The stack's own Traefik owns ports 80/443 and routes watch.kadiri.app to
+# `frontend` and `backend` over the `edge` network (config: traefik/traefik.yml).
+# Backend is also bound to 127.0.0.1:8000 on the host for local debugging only.
 #
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
@@ -15,9 +13,6 @@
 name: zonoticwatch
 
 services:
-  # Named uniquely (not plain `postgres`): the backend joins the shared
-  # `edge` network, where the pemost stack's own `postgres` service answers
-  # to that hostname too. A distinct name avoids the DNS collision.
   zw-postgres:
     image: postgis/postgis:16-3.4
     restart: unless-stopped
@@ -129,6 +124,18 @@ services:
     networks:
       - internal
 
+  traefik:
+    image: traefik:3.6.4
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - traefik-acme:/etc/traefik/acme
+    networks:
+      - edge
+
   frontend:
     build:
       context: .
@@ -143,9 +150,8 @@ services:
 
 volumes:
   pgdata:
+  traefik-acme:
 
 networks:
   internal:
   edge:
-    external: true
-    name: pemost_core_api_default

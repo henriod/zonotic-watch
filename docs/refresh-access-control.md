@@ -57,12 +57,13 @@ several.
 
 ### Phase 1 — proxy-level guard (do this first; no app deploy)
 
-The shared Traefik already routes `watch.kadiri.app`. Add a **dedicated,
+The stack's Traefik already routes `watch.kadiri.app`. Add a **dedicated,
 higher-priority router** for the refresh path with basic auth + a rate limit.
 A longer path rule (`/api/refresh`) outranks the general `/api` rule, so
 refresh traffic lands here while everything else is untouched.
 
-In `pemost`'s `traefik.yml` (`compose/production/traefik/`):
+In `traefik/traefik.yml` (router/service names there are `watch-api`,
+`strip-api` and `backend`):
 
 ```yaml
 http:

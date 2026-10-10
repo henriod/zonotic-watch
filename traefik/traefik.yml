@@ -1,0 +1,57 @@
+# ZonoticWatch's own Traefik (owns host ports 80/443).
+log:
+  level: INFO
+
+entryPoints:
+  web:
+    address: ':80'
+    http:
+      redirections:
+        entryPoint:
+          to: web-secure
+  web-secure:
+    address: ':443'
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: 'odhiambb@gmail.com'
+      storage: /etc/traefik/acme/acme.json
+      httpChallenge:
+        entryPoint: web
+
+http:
+  routers:
+    watch-frontend:
+      rule: 'Host(`watch.kadiri.app`)'
+      entryPoints: [web-secure]
+      service: frontend
+      tls:
+        certResolver: letsencrypt
+    watch-api:
+      rule: 'Host(`watch.kadiri.app`) && PathPrefix(`/api`)'
+      entryPoints: [web-secure]
+      middlewares: [strip-api]
+      service: backend
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    strip-api:
+      stripPrefix:
+        prefixes: ['/api']
+
+  services:
+    frontend:
+      loadBalancer:
+        servers:
+          - url: http://zonotic-frontend:80
+    backend:
+      loadBalancer:
+        servers:
+          - url: http://zonotic-backend:8000
+
+providers:
+  file:
+    filename: /etc/traefik/traefik.yml
+    watch: true

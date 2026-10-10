@@ -138,35 +138,33 @@ panel shows a clear error.
 
 ## Production deployment
 
-The app is deployed at **https://watch.kadiri.app** on a shared server that
-already runs other applications. The whole stack — Postgres/PostGIS,
-Temporal (+ UI), the FastAPI backend, the ingestion worker, and the
-nginx-served React build — runs from `docker-compose.prod.yml`.
+The app is deployed at **https://watch.kadiri.app**. The whole stack -
+Traefik, Postgres/PostGIS, Temporal (+ UI), the FastAPI backend, the
+ingestion worker, and the nginx-served React build - runs from
+`docker-compose.prod.yml`.
 
 ### Deployment artifacts
 
 | File                     | Purpose                                                        |
 | ------------------------ | -------------------------------------------------------------- |
-| `docker-compose.prod.yml`| Production stack (6 services, project name `zonoticwatch`)     |
+| `docker-compose.prod.yml`| Production stack (7 services, project name `zonoticwatch`)     |
+| `traefik/traefik.yml`    | Traefik routes for `watch.kadiri.app` + Let's Encrypt resolver |
 | `Dockerfile.frontend`    | Multi-stage build: Vite bundle → nginx (`VITE_API_BASE=/api`)  |
 | `nginx.conf`             | SPA history fallback + static-asset caching                    |
 | `.dockerignore`          | Trims the frontend build context                               |
 
-### How it fits on the shared server
+### Routing
 
-Ports 80/443 belong to another app's **Traefik** reverse proxy, so
-ZonoticWatch publishes **no public ports**. Instead:
+The stack's own **Traefik** owns host ports 80/443:
 
-- The `frontend` and `backend` containers join that Traefik's Docker
-  network (the external network `pemost_core_api_default`), so Traefik can
-  reach them by name (`zonotic-frontend`, `zonotic-backend`).
-- Two routers are added to that Traefik's file config for
-  `watch.kadiri.app`: `/api/*` is `StripPrefix`-ed and routed to the
-  FastAPI backend; every other path serves the static dashboard. HTTPS is
-  issued via the existing Let's Encrypt resolver.
-- The database service is named **`zw-postgres`** (not `postgres`) — the
-  backend sits on the shared Traefik network, where the other app's own
-  `postgres` service would otherwise collide on that hostname.
+- `frontend`, `backend` and `traefik` share the `edge` network, so Traefik
+  reaches them by name (`zonotic-frontend`, `zonotic-backend`).
+- `traefik/traefik.yml` has two routers for `watch.kadiri.app`: `/api/*` is
+  `StripPrefix`-ed and routed to the FastAPI backend; every other path
+  serves the static dashboard. HTTPS certs come from Let's Encrypt and are
+  stored in the `traefik-acme` volume.
+- The config is a host file mounted read-only and Traefik watches it, so
+  route edits hot-reload and survive container recreates.
 
 ### First-time deploy
 
@@ -188,10 +186,8 @@ docker compose -f docker-compose.prod.yml exec backend python -m scripts.load_co
 docker compose -f docker-compose.prod.yml exec backend python -m scripts.seed_sample_data
 ```
 
-Then point the subdomain's DNS **A record** at the server and add the
-`watch.kadiri.app` routers/middleware/services to the shared Traefik
-config (it watches its config file, so the change hot-reloads — back the
-file up first).
+Point the subdomain's DNS **A record** at the server before the first
+start, so Traefik's Let's Encrypt HTTP challenge succeeds.
 
 ### Redeploying after code changes
 
