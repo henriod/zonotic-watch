@@ -1,0 +1,41 @@
+# ZonoticWatch - https://watch.kadiri.app (stack: /root/zonoticwatch)
+# Source of truth for /root/proxy/dynamic/zonotic.yml on the server (Traefik
+# hot-reloads it). Install: scp deploy/traefik-zonotic.yml root@<server>:/root/proxy/dynamic/zonotic.yml
+http:
+  routers:
+    watch-frontend:
+      rule: 'Host(`watch.kadiri.app`)'
+      entryPoints: [web-secure]
+      service: watch-frontend
+    watch-api:
+      rule: 'Host(`watch.kadiri.app`) && PathPrefix(`/api`)'
+      entryPoints: [web-secure]
+      middlewares: [watch-strip-api]
+      service: watch-backend
+    # Costly / brute-forceable endpoints get a per-IP rate limit. The longer
+    # rule outranks watch-api automatically.
+    watch-api-limited:
+      rule: 'Host(`watch.kadiri.app`) && (Path(`/api/auth/login`) || Path(`/api/analyze`) || Path(`/api/refresh`))'
+      entryPoints: [web-secure]
+      middlewares: [watch-ratelimit, watch-strip-api]
+      service: watch-backend
+
+  middlewares:
+    watch-strip-api:
+      stripPrefix:
+        prefixes: ['/api']
+    watch-ratelimit:
+      rateLimit:
+        average: 10   # requests per minute per client IP
+        period: 1m
+        burst: 5
+
+  services:
+    watch-frontend:
+      loadBalancer:
+        servers:
+          - url: http://zonotic-frontend:80
+    watch-backend:
+      loadBalancer:
+        servers:
+          - url: http://zonotic-backend:8000

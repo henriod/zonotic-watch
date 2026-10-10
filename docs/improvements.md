@@ -12,6 +12,14 @@ Priority: **P0** fix now (security / data loss) - **P1** next sprint
 
 ## P0 - fix now
 
+**Status (2026-10-10, branch `chore/p0-fixes`, deployed):** 1 code fixed
+(token rotation still needed); 3 guarded (prod secret confirmed set); 4 fixed;
+5 code fixed (bcrypt, timing, single-flight refresh), Traefik rate limit
+staged in `deploy/traefik-zonotic.yml` but not installed; 2 script staged in
+`scripts/backup-db.sh` but cron not installed; 6 eight of nine advisories
+fixed - maplibre needs 6.x, which rendered a blank map in testing (worker
+bundling fixed, tiles/polygons still not drawing) and is deferred.
+
 ### 1. Apify token is written to the worker logs (verified live)
 - `backend/app/temporal/activities.py:120,141,152` passes the token as a
   `?token=` query param; `backend/app/temporal/worker.py:18` logs at INFO, so
