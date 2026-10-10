@@ -217,9 +217,9 @@ ssh root@<server> 'cd /root/zonoticwatch && \
   docker compose -f docker-compose.prod.yml up -d --build'
 ```
 
-For a backend-only change, copying the changed files and rebuilding just
-that service is enough (and avoids touching anything else):
-`docker compose -f docker-compose.prod.yml up -d --build backend`.
+`backend` and `worker` share one image (`zonoticwatch-backend`), so always
+rebuild them together - rebuilding only `backend` leaves the worker on the
+old image: `docker compose -f docker-compose.prod.yml up -d --build backend worker`.
 
 Re-run `alembic upgrade head` if there are new migrations. The Temporal
 worker does **not** hot-reload — `up -d --build` recreates it.
