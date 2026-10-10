@@ -1,7 +1,8 @@
 # ZonoticWatch Kenya — production stack.
 #
-# The stack's own Traefik owns ports 80/443 and routes watch.kadiri.app to
-# `frontend` and `backend` over the `edge` network (config: traefik/traefik.yml).
+# The server's shared Traefik (/root/proxy) owns ports 80/443 and routes
+# watch.kadiri.app to `frontend` and `backend` over the external `proxy`
+# network (routes: /root/proxy/dynamic/zonotic.yml).
 # Backend is also bound to 127.0.0.1:8000 on the host for local debugging only.
 #
 #   docker compose -f docker-compose.prod.yml up -d --build
@@ -124,18 +125,6 @@ services:
     networks:
       - internal
 
-  traefik:
-    image: traefik:3.6.4
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - traefik-acme:/etc/traefik/acme
-    networks:
-      - edge
-
   frontend:
     build:
       context: .
@@ -150,8 +139,9 @@ services:
 
 volumes:
   pgdata:
-  traefik-acme:
 
 networks:
   internal:
   edge:
+    external: true
+    name: proxy

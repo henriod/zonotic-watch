@@ -139,32 +139,33 @@ panel shows a clear error.
 ## Production deployment
 
 The app is deployed at **https://watch.kadiri.app**. The whole stack -
-Traefik, Postgres/PostGIS, Temporal (+ UI), the FastAPI backend, the
-ingestion worker, and the nginx-served React build - runs from
+Postgres/PostGIS, Temporal (+ UI), the FastAPI backend, the ingestion
+worker, and the nginx-served React build - runs from
 `docker-compose.prod.yml`.
 
 ### Deployment artifacts
 
 | File                     | Purpose                                                        |
 | ------------------------ | -------------------------------------------------------------- |
-| `docker-compose.prod.yml`| Production stack (7 services, project name `zonoticwatch`)     |
-| `traefik/traefik.yml`    | Traefik routes for `watch.kadiri.app` + Let's Encrypt resolver |
+| `docker-compose.prod.yml`| Production stack (6 services, project name `zonoticwatch`)     |
 | `Dockerfile.frontend`    | Multi-stage build: Vite bundle → nginx (`VITE_API_BASE=/api`)  |
 | `nginx.conf`             | SPA history fallback + static-asset caching                    |
 | `.dockerignore`          | Trims the frontend build context                               |
 
 ### Routing
 
-The stack's own **Traefik** owns host ports 80/443:
+The server runs one shared **Traefik** stack at `/root/proxy` (not in this
+repo) that owns host ports 80/443 for every app:
 
-- `frontend`, `backend` and `traefik` share the `edge` network, so Traefik
-  reaches them by name (`zonotic-frontend`, `zonotic-backend`).
-- `traefik/traefik.yml` has two routers for `watch.kadiri.app`: `/api/*` is
+- `frontend` and `backend` join the external `proxy` network (the compose
+  file calls it `edge`), so Traefik reaches them by name
+  (`zonotic-frontend`, `zonotic-backend`).
+- Routes live in `/root/proxy/dynamic/zonotic.yml`: `/api/*` is
   `StripPrefix`-ed and routed to the FastAPI backend; every other path
-  serves the static dashboard. HTTPS certs come from Let's Encrypt and are
-  stored in the `traefik-acme` volume.
-- The config is a host file mounted read-only and Traefik watches it, so
-  route edits hot-reload and survive container recreates.
+  serves the static dashboard. Edits hot-reload. HTTPS certs come from
+  Let's Encrypt (`/root/proxy/acme/acme.json`).
+- The `proxy` network must exist before this stack starts
+  (`docker network create proxy`).
 
 ### First-time deploy
 
