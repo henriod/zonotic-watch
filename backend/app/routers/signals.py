@@ -64,8 +64,17 @@ async def trigger_refresh(_user: User = Depends(require_user)) -> dict:
 
 
 @router.get("/refresh/{workflow_id}")
-async def refresh_status(workflow_id: str) -> dict:
-    """Poll an ingestion run; includes the summary once it has completed."""
+async def refresh_status(
+    workflow_id: str, _user: User = Depends(require_user)
+) -> dict:
+    """Poll an ingestion run; includes the summary once it has completed.
+
+    Login-gated like `POST /refresh`: the id is now the fixed "ingest-manual",
+    so an open endpoint would show any run's summary to anyone. Only ingest
+    workflows are describable.
+    """
+    if not workflow_id.startswith("ingest-"):
+        raise HTTPException(status_code=404, detail="workflow not found")
     client = await get_temporal_client()
     handle = client.get_workflow_handle(workflow_id)
     try:
