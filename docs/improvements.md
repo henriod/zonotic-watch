@@ -39,7 +39,7 @@ Priority: **P0** fix now (security / data loss) - **P1** next sprint
 | 26 limits/swap | Open (0 swap). |
 | 27-35 frontend/backend P2 | Open. |
 | 36 public surfaces | Partly: `/refresh/{id}` gated to `ingest-*`; `/api/docs` still public. |
-| 37-41 housekeeping | Open (`reso.json` 623 KB and the EMPRES CSV still shipped; no tests; hard-coded DB creds). |
+| 37-41 housekeeping | 38 done 2026-11-02 (README + CLAUDE.md rewritten). 37, 39-41 open (`reso.json` 623 KB and the EMPRES CSV still shipped; no tests; hard-coded DB creds). |
 
 Added since the review: MoH-only `ebola_cases` table + admin tab (Ebola counts are never media-derived), regional Ebola GDELT query with neighbour-country labelling, Ebola/VHF card, trend series and feed badge.
 
