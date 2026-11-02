@@ -206,14 +206,13 @@ export default function ZonoticWatch() {
 
         {/* ── CENTER: Map / Weather / Config tabs ── */}
         <div style={{ ...panel, overflow:"hidden" }}>
-          <div style={{ display:"flex", borderBottom:"0.5px solid var(--color-border-tertiary)" }}>
+          <div className="tab-bar" role="tablist" style={{ borderBottom:"0.5px solid var(--color-border-tertiary)" }}>
             {visibleTabs.map(([t, ic, lbl]) => (
-              <button key={t} onClick={() => setTab(t)} style={{
-                flex:1, padding:"0.55rem", fontSize:12, fontWeight: tab===t ? 500 : 400,
+              <button key={t} role="tab" aria-selected={tab===t} onClick={() => setTab(t)} style={{
+                padding:"0.55rem", fontSize:12, fontWeight: tab===t ? 500 : 400,
                 background: tab===t ? "var(--color-background-secondary)" : "transparent",
                 border:"none", borderBottom: tab===t ? "2px solid var(--color-border-info)" : "2px solid transparent",
                 cursor:"pointer", color: tab===t ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:5,
               }}>
                 <i className={`ti ${ic}`} style={{ fontSize:13 }} aria-hidden="true" />
                 {lbl}

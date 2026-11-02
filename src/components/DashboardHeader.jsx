@@ -13,19 +13,19 @@ export default function DashboardHeader({
   onLogout,
 }) {
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"1rem 1.5rem", borderBottom:"0.5px solid var(--color-border-tertiary)", marginBottom:"1rem" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+    <div className="dash-header" style={{ borderBottom:"0.5px solid var(--color-border-tertiary)", marginBottom:"1rem" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
         <div style={{ width:38, height:38, borderRadius:"50%", background:overallRiskColor, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <i className="ti ti-virus" style={{ fontSize:18, color:"#fff" }} aria-hidden="true" />
         </div>
         <div>
           <p style={{ margin:0, fontWeight:500, fontSize:16 }}>ZonoticWatch Kenya</p>
-          <p style={{ margin:0, fontSize:12, color:"var(--color-text-secondary)", fontFamily:"var(--font-mono)" }}>
+          <p className="dash-subtitle" style={{ margin:0, fontSize:12, color:"var(--color-text-secondary)", fontFamily:"var(--font-mono)" }}>
             Zoonotic Early Warning · GDELT + Apify + Ollama
           </p>
         </div>
       </div>
-      <div style={{ display:"flex", alignItems:"center", gap:20 }}>
+      <div className="dash-status">
         <div style={{ textAlign:"center" }}>
           <p style={{ margin:0, fontSize:12, color:"var(--color-text-secondary)" }}>Alert Level</p>
           <p style={{ margin:0, fontWeight:500, fontSize:13, color:overallRiskColor, fontFamily:"var(--font-mono)" }}>{overallRisk}</p>

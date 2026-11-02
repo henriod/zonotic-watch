@@ -61,8 +61,50 @@ body {
   grid-template-columns: 1fr 1fr;
 }
 
+/* Header: brand left, status cluster right; both wrap on narrow screens
+   instead of pushing the page wider than the viewport. */
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  padding: 1rem 1.5rem;
+}
+
+.dash-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+
+/* Center-panel tab bar: tabs never wrap their label; on narrow screens the
+   bar scrolls sideways instead of clipping the last tab. */
+.tab-bar {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-bar > button {
+  flex: 1 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
 /* Tablet / small laptop — drop the fixed side columns, stack rows. */
 @media (max-width: 1100px) {
+  .metric-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
   .main-grid {
     grid-template-columns: 1fr;
   }
@@ -76,10 +118,26 @@ body {
   .metric-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  /* Five cards in two columns: let the Ebola card (3rd) take a full row so
+     its MoH sub-line has room and nothing is orphaned. */
+  .metric-grid > :nth-child(3) {
+    grid-column: span 2;
+  }
   .metric-grid,
   .main-grid,
   .bottom-grid {
     padding: 0 0.75rem;
+  }
+  .dash-header {
+    padding: 0.75rem;
+  }
+  .dash-subtitle {
+    display: none;
+  }
+  .dash-status {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px 12px;
   }
 }
 
