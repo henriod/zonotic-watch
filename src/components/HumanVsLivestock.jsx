@@ -18,7 +18,7 @@ export default function HumanVsLivestock({ totalHuman, totalAnimal }) {
     <div style={{ ...panel, padding:"0.9rem" }}>
       <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:12 }}>
         <p style={{ margin:0, fontWeight:500, fontSize:13 }}>Human vs livestock</p>
-        <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--color-text-tertiary)" }}>{totalHuman + totalAnimal} cases</span>
+        <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--color-text-tertiary)" }}>{totalHuman + totalAnimal} reports · 90d</span>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
         {stats.map(s => (

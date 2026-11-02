@@ -38,7 +38,7 @@ export default function DiseaseDistribution() {
     <div style={{ ...panel, padding:"0.9rem", flex:1 }}>
       <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom:14 }}>
         <p style={{ margin:0, fontWeight:500, fontSize:13 }}>Disease distribution</p>
-        <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--color-text-tertiary)" }}>{total} cases</span>
+        <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--color-text-tertiary)" }}>{total} signals</span>
       </div>
       {diseases.map((d, i) => {
         const color = DISEASE_PALETTE[i % DISEASE_PALETTE.length];

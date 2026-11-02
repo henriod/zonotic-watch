@@ -80,14 +80,18 @@ async def trend(
 async def diseases(
     session: AsyncSession = Depends(get_session),
 ) -> list[DiseaseSlice]:
-    """Disease distribution across the whole signal feed, highest first."""
+    """Disease distribution across Kenya-located signals, highest first.
+
+    Regional Ebola-watch rows are excluded, as in every other count; these
+    are signal counts, never case counts.
+    """
     rows = (
         await session.execute(
             text(
-                """
+                f"""
                 SELECT disease AS name, count(*) AS total
                 FROM signals
-                WHERE disease IS NOT NULL
+                WHERE disease IS NOT NULL AND {_KENYA_ONLY}
                 GROUP BY disease
                 ORDER BY total DESC, name
                 """
