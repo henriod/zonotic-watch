@@ -137,6 +137,7 @@ VERIFIED_HANDLES: set[str] = {h.lower() for h in TWITTER_HANDLES}
 _UNCLASSIFIED = "Unclassified zoonotic"
 
 
+
 def detect_disease(text_lc: str) -> tuple[str | None, int]:
     """Disease with the most keyword hits, or (None, 0)."""
     best: str | None = None
@@ -148,12 +149,15 @@ def detect_disease(text_lc: str) -> tuple[str | None, int]:
     return best, best_hits
 
 
-def detect_severity(text_lc: str) -> str:
+def detect_severity(text_lc: str, disease: str | None = None) -> str:
+    """Severity tier. CRITICAL additionally requires a recognised disease:
+    generic "deaths" + "outbreak" chatter with no agent named tops out at
+    HIGH (this is where open-search tweet noise was landing)."""
     if _NEGATION_RE.search(text_lc):
         return "LOW"
     high_terms = {m.group(1) for m in _HIGH_RE.finditer(text_lc)}
     if _CRITICAL_RE.search(text_lc) or len(high_terms) >= 2:
-        return "CRITICAL"
+        return "CRITICAL" if disease and disease != _UNCLASSIFIED else "HIGH"
     if high_terms:
         return "HIGH"
     if _MEDIUM_RE.search(text_lc):
@@ -244,7 +248,7 @@ def classify_articles(articles: list[dict]) -> list[dict]:
                 "handle": a.get("domain") or "news",
                 "text": title,
                 "disease": disease or _UNCLASSIFIED,
-                "severity": detect_severity(lc),
+                "severity": detect_severity(lc, disease),
                 "hits": hits,
                 "verified": False,
                 "topic": True,  # GDELT query is already topic-scoped
@@ -286,7 +290,7 @@ def classify_tweets(tweets: list[dict]) -> list[dict]:
                 "handle": _tweet_handle(t),
                 "text": text,
                 "disease": disease or _UNCLASSIFIED,
-                "severity": detect_severity(lc),
+                "severity": detect_severity(lc, disease),
                 "hits": hits,
                 "verified": verified,
                 "topic": has_zoonotic_topic(lc),

@@ -59,11 +59,14 @@ def test_severity_negation_and_substrings():
 
 
 def test_severity_tiers():
-    assert detect_severity("kenya flagged as high risk of rvf outbreak") == "HIGH"      # outbreak alone
-    assert detect_severity("ministry confirms anthrax outbreak in isiolo") == "CRITICAL"  # confirms + outbreak
-    assert detect_severity("mass livestock death in baringo") == "CRITICAL"
+    assert detect_severity("kenya flagged as high risk of rvf outbreak", "Rift Valley Fever") == "HIGH"  # outbreak alone
+    assert detect_severity("ministry confirms anthrax outbreak in isiolo", "Anthrax") == "CRITICAL"  # confirms + outbreak
+    assert detect_severity("mass livestock death in baringo", "Anthrax") == "CRITICAL"
+    # Two HIGH terms but no recognised disease -> HIGH, not CRITICAL.
+    assert detect_severity("during the plandemic vast numbers of animals died, mass deaths covered up") == "HIGH"
+    assert detect_severity("during the plandemic vast numbers of animals died, mass deaths covered up", "Unclassified zoonotic") == "HIGH"
     assert detect_severity("kenya secures world bank emergency funding for fertiliser") == "LOW"
-    assert detect_severity("public health emergency declared over anthrax") == "CRITICAL"
+    assert detect_severity("public health emergency declared over anthrax", "Anthrax") == "CRITICAL"
     assert detect_severity("several cows dying suddenly, vet called") == "HIGH"
     assert detect_severity("rabies alert as dog bites rise") == "MEDIUM"
     assert detect_severity("new abattoir opens in nakuru") == "LOW"

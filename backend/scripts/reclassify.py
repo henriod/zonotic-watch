@@ -35,7 +35,7 @@ async def main() -> None:
             # Coordinates were never stored, so name matching is the only tier.
             county_id, loc_name = await resolve_county(session, r["text"], counties)
             severity = escalate_filovirus(
-                r["disease"], detect_severity(lc), lc,
+                r["disease"], detect_severity(lc, r["disease"]), lc,
                 in_kenya=county_id is not None or loc_name == "Kenya",
             )
             after[severity] += 1
