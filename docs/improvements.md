@@ -24,9 +24,9 @@ Priority: **P0** fix now (security / data loss) - **P1** next sprint
 | 8 scheduling | Done (hourly GDELT-only schedule, maxrecords 250). |
 | 9 seed data | Done 2026-11-02: 7 `seed-*` signals deleted from prod (backup taken first). |
 | 10 `/risk?week=` | Done 2026-11-02 (`week: date`). |
-| 11 geocode false positives | Open. |
-| 12 CRITICAL inflation | Open (Ebola-in-Kenya escalation added, generic tiers unchanged). |
-| 13 tweet dates | Open. |
+| 11 geocode false positives | Done 2026-11-02: one word-boundary regex over names + aliases, most-mentioned wins, Nairobi loses ties, curly apostrophes, Pokot/Taveta/Tharaka/Marakwet aliases. |
+| 12 CRITICAL inflation | Done 2026-11-02: word-boundary tiers, CRITICAL needs two HIGH terms or an emergency phrase, negation list. Existing rows reclassified with `scripts.reclassify`. |
+| 13 tweet dates | Done 2026-11-02: legacy X format parsed via `email.utils`. |
 | 14 retries | Partly: `maximum_attempts` on classify/upsert; missing token still retryable; no `finally`. No stuck RUNNING rows today. |
 | 15 dedup | Open. |
 | 16 risk model | Open. |
@@ -39,11 +39,11 @@ Priority: **P0** fix now (security / data loss) - **P1** next sprint
 | 26 limits/swap | Open (0 swap). |
 | 27-35 frontend/backend P2 | Open. |
 | 36 public surfaces | Partly: `/refresh/{id}` gated to `ingest-*`; `/api/docs` still public. |
-| 37-41 housekeeping | 38 done 2026-11-02 (README + CLAUDE.md rewritten). 37, 39-41 open (`reso.json` 623 KB and the EMPRES CSV still shipped; no tests; hard-coded DB creds). |
+| 37-41 housekeeping | 37 partly done (`backend/tests/test_classify.py`, no vitest), 38 done 2026-11-02 (README + CLAUDE.md rewritten). 39-41 open (`reso.json` 623 KB and the EMPRES CSV still shipped; no tests; hard-coded DB creds). |
 
 Added since the review: MoH-only `ebola_cases` table + admin tab (Ebola counts are never media-derived), regional Ebola GDELT query with neighbour-country labelling, Ebola/VHF card, trend series and feed badge.
 
-Next: 11-13 (geocode boundaries, CRITICAL inflation, tweet dates) with the tests from 37; then 6 (npm audit) and 24-26 (ops).
+Next: 6 (npm audit), 15 (dedup), 24-26 (ops), 18-21 (frontend correctness).
 
 ---
 

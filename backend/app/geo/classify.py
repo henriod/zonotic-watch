@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import re
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 # ── Apify source config (was SCRAPE_KEYWORDS / TWITTER_HANDLES) ──────────
 SCRAPE_KEYWORDS: list[str] = [
@@ -105,13 +106,27 @@ TOPIC_TERMS: list[str] = [
     "ebola", "marburg", "hemorrhagic", "haemorrhagic",
 ]
 
-SEVERITY_TIERS: list[tuple[str, list[str]]] = [
-    ("CRITICAL", ["confirmed", "outbreak", "emergency", "hemorrhagic",
-                  "mass death", "spreading", "declared"]),
-    ("HIGH", ["dying", "dead", "death", "deaths", "suspected", "carcass",
-              "abortion", "quarantine"]),
-    ("MEDIUM", ["sick", "illness", "fever", "bite", "infected", "vet"]),
-]
+# Severity — word-boundary regexes (no "dead" in "deadline", no "vet" in
+# "velvet"). CRITICAL needs two distinct HIGH terms (e.g. "confirmed" +
+# "outbreak") or an explicit emergency phrase; "outbreak" alone is HIGH,
+# because the GDELT query is outbreak-themed and would otherwise make
+# everything CRITICAL. A negated report ("declared free of", "no new cases",
+# "ruled out") is LOW whatever else it says.
+_HIGH_RE = re.compile(
+    r"\b(dying|dead|died|deaths?|suspected|carcass(es)?|abortions?|"
+    r"quarantin\w*|confirm(ed|s)|outbreaks?|epidemic|hemorrhagic|haemorrhagic|"
+    r"hospitali[sz]ed|spreading|declared)\b"
+)
+_CRITICAL_RE = re.compile(r"\b(emergency|mass (livestock |animal )?deaths?)\b")
+_MEDIUM_RE = re.compile(
+    r"\b(sick|illness|fever|bites?|bitten|infected|infections?|vets?|"
+    r"veterinary|symptoms?)\b"
+)
+_NEGATION_RE = re.compile(
+    r"\b(free (of|from)|no (new |confirmed |reported |further )?"
+    r"(cases?|outbreaks?|deaths?|evidence)|ruled out|not an? outbreak|"
+    r"false alarm|outbreak (is )?(over|contained)|declared [\w\s-]{0,30}free)\b"
+)
 
 VERIFIED_HANDLES: set[str] = {h.lower() for h in TWITTER_HANDLES}
 
@@ -130,10 +145,25 @@ def detect_disease(text_lc: str) -> tuple[str | None, int]:
 
 
 def detect_severity(text_lc: str) -> str:
-    for tier, keywords in SEVERITY_TIERS:
-        if any(k in text_lc for k in keywords):
-            return tier
+    if _NEGATION_RE.search(text_lc):
+        return "LOW"
+    high_terms = {m.group(1) for m in _HIGH_RE.finditer(text_lc)}
+    if _CRITICAL_RE.search(text_lc) or len(high_terms) >= 2:
+        return "CRITICAL"
+    if high_terms:
+        return "HIGH"
+    if _MEDIUM_RE.search(text_lc):
+        return "MEDIUM"
     return "LOW"
+
+
+def escalate_filovirus(disease: str | None, severity: str, text_lc: str, in_kenya: bool) -> str:
+    """Ebola focus: a filovirus case/screening report inside Kenya is always
+    CRITICAL. Regional reports keep the generic tier so they don't drive the
+    national alert level. Shared by ingestion and scripts/reclassify.py."""
+    if disease in FILOVIRUSES and in_kenya and FILOVIRUS_CASE_RE.search(text_lc):
+        return "CRITICAL"
+    return severity
 
 
 def has_zoonotic_topic(text_lc: str) -> bool:
@@ -158,15 +188,21 @@ def _parse_gdelt_date(raw: str | None) -> str:
 
 
 def _parse_tweet_date(raw: str | None) -> str:
+    """ISO-8601 or the legacy X format ("Thu Dec 12 21:39:29 +0000 2024",
+    which is what the Apify scraper emits) -> ISO-8601; now() if neither."""
     if not raw:
         return _now_iso()
+    dt = None
     try:
         dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.isoformat()
     except ValueError:
-        return _now_iso()
+        try:
+            dt = parsedate_to_datetime(raw)
+        except (ValueError, TypeError):
+            return _now_iso()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 
 def _tweet_text(t: dict) -> str:

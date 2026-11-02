@@ -69,6 +69,8 @@ docker compose exec backend alembic upgrade head               # create 5 tables
 docker compose exec backend python -m scripts.load_counties    # load 47 GADM polygons
 docker compose exec backend python -m scripts.seed_sample_data # seed SIGNALS + COUNTIES
 docker compose exec backend python -m scripts.load_empres_rvf  # load FAO EMPRES-i Kenya RVF events
+docker compose exec backend python -m scripts.reclassify        # re-run severity + county resolution over all signals
+docker compose exec backend python -m tests.test_classify       # classifier / geocoder checks (no DB)
 ```
 
 All three scripts are idempotent. `load_counties` prints

@@ -12,6 +12,8 @@ default, but now spatially correct whenever location data exists.
 from __future__ import annotations
 
 import re
+from collections import Counter
+from functools import lru_cache
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,7 +44,15 @@ TOWN_ALIASES: dict[str, str] = {
     "uasin gishu": "uasingishu", "west pokot": "westpokot",
     "elgeyo marakwet": "elgeyo-marakwet", "tharaka nithi": "tharaka-nithi",
     "muranga": "muranga", "murang'a": "muranga",
+    # Partial / community names that commonly stand in for the county
+    "pokot": "westpokot", "taveta": "taitataveta", "taita": "taitataveta",
+    "tharaka": "tharaka-nithi", "marakwet": "elgeyo-marakwet",
+    "elgeyo": "elgeyo-marakwet",
 }
+
+# Counties whose names appear in datelines and ministry bylines far more
+# often than as the place of an event; they lose ties to any other county.
+_DATELINE = {"nairobi"}
 
 _FALLBACK_LOC = "Kenya"
 
@@ -63,8 +73,21 @@ NEIGHBOURS: list[tuple[re.Pattern[str], str]] = [
 
 async def load_counties(session: AsyncSession) -> list[tuple[str, str]]:
     """All counties as (id, name) — fetched once per ingestion batch."""
-    rows = (await session.execute(text("SELECT id, name FROM counties"))).all()
+    rows = (await session.execute(text("SELECT id, name FROM counties ORDER BY id"))).all()
     return [(r[0], r[1]) for r in rows]
+
+
+@lru_cache(maxsize=4)
+def _place_pattern(counties: tuple[tuple[str, str], ...]) -> tuple[re.Pattern[str], dict[str, tuple[str, str]]]:
+    """One word-boundary regex over county names + aliases, longest first,
+    plus a lookup from the matched term to (county_id, display name)."""
+    terms: dict[str, tuple[str, str]] = {}
+    for cid, name in counties:
+        terms[name.lower()] = (cid, name)
+    for alias, cid in TOWN_ALIASES.items():
+        terms.setdefault(alias, (cid, alias.title()))
+    alternation = "|".join(re.escape(t) for t in sorted(terms, key=len, reverse=True))
+    return re.compile(rf"\b({alternation})\b"), terms
 
 
 async def _county_for_point(
@@ -87,13 +110,26 @@ async def _county_for_point(
 def _resolve_by_name(
     text_lc: str, counties: list[tuple[str, str]]
 ) -> tuple[str | None, str]:
-    """Substring-match county names, then the town alias map."""
-    for cid, name in counties:
-        if name.lower() in text_lc:
-            return cid, name
-    for alias, cid in TOWN_ALIASES.items():
-        if alias in text_lc:
-            return cid, alias.title()
+    """Whole-word match over county names and town aliases.
+
+    The most-mentioned county wins; on a tie, a non-dateline county beats
+    Nairobi, then the earliest mention. "avoid" no longer hits Voi and
+    "Molotov" no longer hits Molo.
+    """
+    text_lc = text_lc.replace("\u2019", "'")  # curly apostrophe: Murang’a
+    pattern, terms = _place_pattern(tuple(counties))
+    hits = list(pattern.finditer(text_lc))
+    if hits:
+        counts = Counter(terms[m.group(1)][0] for m in hits)
+        first_pos = {}
+        for m in hits:
+            first_pos.setdefault(terms[m.group(1)][0], m.start())
+        best = min(
+            counts,
+            key=lambda cid: (-counts[cid], cid in _DATELINE, first_pos[cid]),
+        )
+        display = next(terms[m.group(1)][1] for m in hits if terms[m.group(1)][0] == best)
+        return best, display
     if "kenya" not in text_lc:
         for pattern, country in NEIGHBOURS:
             if pattern.search(text_lc):
