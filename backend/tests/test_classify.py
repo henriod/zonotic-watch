@@ -41,9 +41,13 @@ def test_geocode_two_counties_prefers_most_mentioned_then_non_dateline():
     assert _resolve_by_name("dog bite cases rise in nairobi", COUNTIES) == ("nairobi", "Nairobi")
 
 
-def test_geocode_neighbour_fallback():
+def test_geocode_country_fallback():
     assert _resolve_by_name("uganda confirms new ebola cases", COUNTIES) == (None, "Uganda")
     assert _resolve_by_name("crimean-congo fever reported", COUNTIES) == (None, "Kenya")
+    assert _resolve_by_name("nigeria reveals its first ebola case", COUNTIES) == (None, "Nigeria")
+    assert _resolve_by_name("liberia imposes 21-day isolation for travellers", COUNTIES) == (None, "Liberia")
+    assert _resolve_by_name("sudan virus outbreak declared", COUNTIES) == (None, "Kenya")  # species, not country
+    assert _resolve_by_name("nigeria ebola case linked to kenya index case", COUNTIES) == (None, "Kenya")
 
 
 def test_severity_negation_and_substrings():
@@ -58,6 +62,8 @@ def test_severity_tiers():
     assert detect_severity("kenya flagged as high risk of rvf outbreak") == "HIGH"      # outbreak alone
     assert detect_severity("ministry confirms anthrax outbreak in isiolo") == "CRITICAL"  # confirms + outbreak
     assert detect_severity("mass livestock death in baringo") == "CRITICAL"
+    assert detect_severity("kenya secures world bank emergency funding for fertiliser") == "LOW"
+    assert detect_severity("public health emergency declared over anthrax") == "CRITICAL"
     assert detect_severity("several cows dying suddenly, vet called") == "HIGH"
     assert detect_severity("rabies alert as dog bites rise") == "MEDIUM"
     assert detect_severity("new abattoir opens in nakuru") == "LOW"

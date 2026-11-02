@@ -117,7 +117,11 @@ _HIGH_RE = re.compile(
     r"quarantin\w*|confirm(ed|s)|outbreaks?|epidemic|hemorrhagic|haemorrhagic|"
     r"hospitali[sz]ed|spreading|declared)\b"
 )
-_CRITICAL_RE = re.compile(r"\b(emergency|mass (livestock |animal )?deaths?)\b")
+# Bare "emergency" is funding/politics far more often than disease.
+_CRITICAL_RE = re.compile(
+    r"\b((public )?health emergency|state of emergency|emergency (response|declared)|"
+    r"mass (livestock |animal |cattle )?deaths?)\b"
+)
 _MEDIUM_RE = re.compile(
     r"\b(sick|illness|fever|bites?|bitten|infected|infections?|vets?|"
     r"veterinary|symptoms?)\b"

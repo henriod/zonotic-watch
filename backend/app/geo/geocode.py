@@ -56,9 +56,11 @@ _DATELINE = {"nairobi"}
 
 _FALLBACK_LOC = "Kenya"
 
-# Regional fallback for the Ebola/Marburg watch: when no county is named and
-# the text does not mention Kenya, label it with the neighbouring country so
-# it stays out of Kenya case counts. "Congo" must not match "Crimean-Congo".
+# Country fallback: when no county is named and the text does not mention
+# Kenya, label it with the country it does name so it stays out of Kenya
+# case counts. Neighbours first, then the rest of Africa that shows up in
+# Ebola coverage. "Congo" must not match "Crimean-Congo"; "Sudan" must not
+# match "Sudan virus" (an Ebola species).
 NEIGHBOURS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\buganda"), "Uganda"),
     (re.compile(r"\b(drc|dr congo|(?<!crimean-)(?<!crimean )congo)\b"), "DR Congo"),
@@ -68,6 +70,20 @@ NEIGHBOURS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bsomalia"), "Somalia"),
     (re.compile(r"\brwanda"), "Rwanda"),
     (re.compile(r"\bburundi"), "Burundi"),
+    (re.compile(r"\bsudan\b(?! virus)"), "Sudan"),
+    (re.compile(r"\bnigeria"), "Nigeria"),
+    (re.compile(r"\bliberia"), "Liberia"),
+    (re.compile(r"\bsierra leone"), "Sierra Leone"),
+    (re.compile(r"\bguinea\b"), "Guinea"),
+    (re.compile(r"\bghana"), "Ghana"),
+    (re.compile(r"\bsenegal"), "Senegal"),
+    (re.compile(r"\bcameroon"), "Cameroon"),
+    (re.compile(r"\bgabon"), "Gabon"),
+    (re.compile(r"\bzambia"), "Zambia"),
+    (re.compile(r"\bmalawi"), "Malawi"),
+    (re.compile(r"\bmozambique"), "Mozambique"),
+    (re.compile(r"\bzimbabwe"), "Zimbabwe"),
+    (re.compile(r"\bsouth africa"), "South Africa"),
 ]
 
 
