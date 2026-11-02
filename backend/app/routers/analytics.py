@@ -107,7 +107,7 @@ async def diseases(
 
 @router.get("/risk", response_model=list[CountyRiskOut])
 async def risk(
-    week: str | None = Query(None, description="ISO week-start date; latest if omitted"),
+    week: date | None = Query(None, description="ISO week-start date; latest if omitted"),
     session: AsyncSession = Depends(get_session),
 ) -> list[CountyRiskOut]:
     """Per-county Gi* risk scores for a week (the latest week by default)."""

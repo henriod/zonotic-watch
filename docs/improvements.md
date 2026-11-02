@@ -10,6 +10,43 @@ Priority: **P0** fix now (security / data loss) - **P1** next sprint
 
 ---
 
+## Status check 2026-11-02 (code + production re-verified)
+
+| Item | Status |
+|---|---|
+| 1 token in logs | Code fixed (Bearer header, httpx quiet). Token rotation not verifiable from here - do it. |
+| 2 backups | Done 2026-11-02: nightly cron 02:30 to `/root/backups/zonoticwatch` (14 days kept); restore tested into a scratch DB. Still on-box only. |
+| 3 session secret | Done (compose `:?` + startup guard). |
+| 4 worker image | Done. |
+| 5 throttling | Done 2026-11-02: Traefik rate limit installed (10/min, burst 5 on login, analyze, refresh; verified 429). `/analyze` still has no per-user quota. |
+| 6 npm audit | Open: 12 vulns (1 critical, 1 high); maplibre-gl still 4.7.1. |
+| 7 national signals | Open. Mitigated: counters now include national rows; regional Ebola rows carry the country. Headline-only geocoding unchanged. |
+| 8 scheduling | Done (hourly GDELT-only schedule, maxrecords 250). |
+| 9 seed data | Done 2026-11-02: 7 `seed-*` signals deleted from prod (backup taken first). |
+| 10 `/risk?week=` | Done 2026-11-02 (`week: date`). |
+| 11 geocode false positives | Open. |
+| 12 CRITICAL inflation | Open (Ebola-in-Kenya escalation added, generic tiers unchanged). |
+| 13 tweet dates | Open. |
+| 14 retries | Partly: `maximum_attempts` on classify/upsert; missing token still retryable; no `finally`. No stuck RUNNING rows today. |
+| 15 dedup | Open. |
+| 16 risk model | Open. |
+| 17 features/counties | Partly: `/counties` + cards sum 90 days of `signals`; full rebuild unchanged. |
+| 18-21 trend axis, freshness, polling, 401 UX | Open. |
+| 22 lockfile | Done 2026-11-02: `poetry.lock` committed, Dockerfile requires it. |
+| 23 CI | Open. |
+| 24 log rotation | Open (no `daemon.json`; containers dir 191 MB after rebuilds). |
+| 25 healthchecks | Open (only Postgres + Temporal). |
+| 26 limits/swap | Open (0 swap). |
+| 27-35 frontend/backend P2 | Open. |
+| 36 public surfaces | Partly: `/refresh/{id}` gated to `ingest-*`; `/api/docs` still public. |
+| 37-41 housekeeping | Open (`reso.json` 623 KB and the EMPRES CSV still shipped; no tests; hard-coded DB creds). |
+
+Added since the review: MoH-only `ebola_cases` table + admin tab (Ebola counts are never media-derived), regional Ebola GDELT query with neighbour-country labelling, Ebola/VHF card, trend series and feed badge.
+
+Next: 11-13 (geocode boundaries, CRITICAL inflation, tweet dates) with the tests from 37; then 6 (npm audit) and 24-26 (ops).
+
+---
+
 ## P0 - fix now
 
 **Status (2026-10-10, branch `chore/p0-fixes`, deployed):** 1 code fixed

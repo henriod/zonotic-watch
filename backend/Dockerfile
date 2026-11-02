@@ -16,7 +16,7 @@ WORKDIR /app
 
 # Copy only dependency manifests first so the install layer is cached
 # until pyproject/lock actually change.
-COPY pyproject.toml poetry.lock* ./
+COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-interaction --no-ansi --no-root
 
 COPY . .
