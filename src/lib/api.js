@@ -22,6 +22,12 @@ export async function apiGet(path) {
   return res.json();
 }
 
+/** DELETE `path`; resolves on 2xx (no body expected). */
+export async function apiDelete(path) {
+  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", credentials: "include" });
+  if (!res.ok) throw new Error(`DELETE ${path} → HTTP ${res.status}`);
+}
+
 /** POST `path` (optional JSON body) and parse the JSON response body. */
 export async function apiPost(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -30,6 +36,9 @@ export async function apiPost(path, body) {
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`POST ${path} → HTTP ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.json().then(j => j.detail?.[0]?.msg ?? j.detail).catch(() => null);
+    throw new Error(detail ? String(detail) : `POST ${path} → HTTP ${res.status}`);
+  }
   return res.json();
 }

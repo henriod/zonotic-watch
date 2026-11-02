@@ -18,12 +18,14 @@ import HumanVsLivestock from "./HumanVsLivestock.jsx";
 import TrendChart from "./TrendChart.jsx";
 import SignalAnalyzer from "./SignalAnalyzer.jsx";
 import UserAdmin from "./UserAdmin.jsx";
+import EbolaCasesAdmin from "./EbolaCasesAdmin.jsx";
 
 /** Center-panel tabs: [id, icon, label, adminOnly]. */
 const TABS = [
   ["map", "ti-map", "Spatial View"],
   ["weather", "ti-cloud", "Weather Risk"],
   ["config", "ti-settings", "Data Sources"],
+  ["ebola", "ti-virus", "Ebola (MoH)", true],
   ["users", "ti-users", "Users", true],
 ];
 
@@ -47,6 +49,14 @@ export default function ZonoticWatch() {
   // 90-day national totals summed from /trend (includes the ~90% of signals
   // that have no county and so never reach /counties). Null = offline.
   const [totals, setTotals] = useState(null);
+  // MoH-confirmed Ebola figures (admin-entered, newest first). The card
+  // shows ebolaCases[0]; media mentions never feed this number.
+  const [ebolaCases, setEbolaCases] = useState([]);
+  const loadEbola = () => {
+    if (!apiEnabled()) return;
+    apiGet("/ebola").then(setEbolaCases).catch(err => console.error("Ebola fetch failed:", err));
+  };
+  useEffect(loadEbola, []);
   const [pulse, setPulse] = useState(false);
   const [scanTime, setScanTime] = useState(new Date());
 
@@ -182,6 +192,7 @@ export default function ZonoticWatch() {
         countiesAffected={countiesAffected}
         critCount={critCount}
         vhfCount={vhfCount}
+        ebola={ebolaCases[0] ?? null}
       />
 
       {/* MAIN 3-COLUMN GRID */}
@@ -228,6 +239,7 @@ export default function ZonoticWatch() {
               onRefresh={handleRefresh}
             />
           )}
+          {tab === "ebola" && isAdmin && <EbolaCasesAdmin cases={ebolaCases} onChange={loadEbola} />}
           {tab === "users" && isAdmin && <UserAdmin currentUser={user} />}
         </div>
 

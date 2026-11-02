@@ -16,7 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import get_settings
 from app.db.models import User
 from app.db.session import async_session_maker
-from app.routers import analytics, analyze, auth, counties, health, signals
+from app.routers import analytics, analyze, auth, counties, ebola, health, signals
 from app.security import hash_password
 
 
@@ -92,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(signals.router)
     app.include_router(analytics.router)
     app.include_router(analyze.router)
+    app.include_router(ebola.router)
     return app
 
 

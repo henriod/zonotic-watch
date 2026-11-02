@@ -7,11 +7,15 @@ export default function MetricCards({
   countiesAffected,
   critCount,
   vhfCount,
+  ebola,
 }) {
+  const ebolaSub = ebola
+    ? `${ebola.deaths} death(s) · MoH ${ebola.reported_on} · ${vhfCount} media mentions (90d)`
+    : `No MoH-confirmed figure recorded · ${vhfCount} media mentions (90d)`;
   const cards = [
     { label:"Human reports (90d)",     val:totalHuman,       icon:"ti-user",           vc:"var(--color-text-danger)" },
     { label:"Livestock reports (90d)", val:totalAnimal,      icon:"ti-paw",            vc:"#3b82c4" },
-    { label:"Ebola / VHF (90d)",       val:vhfCount,         icon:"ti-virus",          vc:VHF_COLOR },
+    { label:"Ebola cases (MoH confirmed)", val: ebola ? ebola.confirmed : "—", icon:"ti-virus", vc:VHF_COLOR, sub:ebolaSub },
     { label:"Counties affected",       val:countiesAffected, icon:"ti-map-pin",        vc:"var(--color-text-info)" },
     { label:"Critical alerts",         val:critCount,        icon:"ti-alert-triangle", vc:"var(--color-text-danger)" },
   ];
@@ -24,6 +28,7 @@ export default function MetricCards({
             <p style={{ margin:0, fontSize:12, color:"var(--color-text-secondary)" }}>{m.label}</p>
           </div>
           <p style={{ margin:0, fontSize:24, fontWeight:500, fontFamily:"var(--font-mono)" }}>{m.val}</p>
+          {m.sub && <p style={{ margin:"2px 0 0", fontSize:12, color:"var(--color-text-tertiary)" }}>{m.sub}</p>}
         </div>
       ))}
     </div>

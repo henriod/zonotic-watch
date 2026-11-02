@@ -45,7 +45,9 @@ export default function SignalFeed({ signals, onSelect }) {
           <div key={s.id} onClick={() => onSelect(s)}
             style={{ padding:"0.65rem 0.85rem", borderBottom:"0.5px solid var(--color-border-tertiary)", cursor:"pointer" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
-              <span style={{ fontSize:12, fontFamily:"var(--font-mono)", padding:"1px 5px", borderRadius:3, background:"var(--color-background-secondary)", color:"var(--color-text-secondary)" }}>{s.src}</span>
+              <span style={{ fontSize:12, fontFamily:"var(--font-mono)", padding:"1px 5px", borderRadius:3, background:"var(--color-background-secondary)", color:"var(--color-text-secondary)" }}>
+                {s.src}{s.handle?.toLowerCase() === "@moh_kenya" && <strong style={{ marginLeft:5, color:"var(--color-text-info)" }}>MoH</strong>}
+              </span>
               <span style={{ fontSize:12, padding:"1px 5px", borderRadius:3, background:sevBg(s.sev), color:sevTextVar(s.sev), fontFamily:"var(--font-mono)" }}>{s.sev}</span>
             </div>
             <p style={{ margin:"3px 0", fontSize:12, lineHeight:1.4, color:"var(--color-text-primary)" }}>{s.text.slice(0,85)}…</p>

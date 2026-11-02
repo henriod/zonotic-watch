@@ -161,3 +161,23 @@ class CountyRisk(Base):
     gi_p_value: Mapped[float | None] = mapped_column(Float)
     method: Mapped[str | None] = mapped_column(Text)  # getis_ord|kriging|blended
     computed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class EbolaCase(Base):
+    """One MoH-confirmed Ebola figure, entered by an admin with its source.
+
+    Never populated by ingestion: media mentions are not cases.
+    """
+
+    __tablename__ = "ebola_cases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    reported_on: Mapped[dt.date] = mapped_column(Date, nullable=False)
+    confirmed: Mapped[int] = mapped_column(Integer, nullable=False)
+    deaths: Mapped[int] = mapped_column(Integer, nullable=False, server_default=sql_text("0"))
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=sql_text("now()")
+    )

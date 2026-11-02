@@ -20,6 +20,7 @@ map's risk tint is now model-computed (the NE pastoralist RVF belt).
 | GET | `/signals?limit=&since=&county=` | signal feed, newest first |
 | POST | `/refresh` | start an ingestion run → `{workflow_id, run_id}` |
 | GET | `/refresh/{workflow_id}` | poll ingestion status / summary |
+| GET | `/ebola` | MoH-confirmed Ebola figures, newest first (admin `POST`/`DELETE`; source must be @MOH_Kenya or health.go.ke) |
 | GET | `/trend?days=` | weekly human / animal / RVF / Ebola-VHF signal trend (Kenya-located only) |
 | GET | `/diseases` | disease distribution across the signal feed |
 | GET | `/risk?week=` | per-county Gi\* risk scores (latest week default) |
