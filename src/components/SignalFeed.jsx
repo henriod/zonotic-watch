@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { sevBg, sevTextVar } from "../lib/risk.js";
+import { isVHF, sevBg, sevTextVar, VHF_COLOR } from "../lib/risk.js";
 import { panel } from "../lib/ui.js";
 
 /** Signals shown per page. */
@@ -55,7 +55,8 @@ export default function SignalFeed({ signals, onSelect }) {
               </span>
               <span style={{ fontSize:12, color:"var(--color-text-tertiary)", fontFamily:"var(--font-mono)" }}>{s.time} ago</span>
             </div>
-            <p style={{ margin:"2px 0 0", fontSize:12, color:"var(--color-text-secondary)" }}>
+            <p style={{ margin:"2px 0 0", fontSize:12, color: isVHF(s.disease) ? VHF_COLOR : "var(--color-text-secondary)", fontWeight: isVHF(s.disease) ? 500 : 400 }}>
+              {isVHF(s.disease) && <i className="ti ti-virus" style={{ fontSize:12, marginRight:3 }} aria-hidden="true" />}
               {s.disease} · {Math.round(s.conf * 100)}%
             </p>
           </div>

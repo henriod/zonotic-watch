@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.schemas.analytics import CountyRiskOut, DiseaseSlice, TrendPoint
-from app.temporal.activities import _ANIMAL_RE, _HUMAN_DISEASES, _HUMAN_RE
+from app.temporal.activities import _ANIMAL_RE, _HUMAN_DISEASES, _HUMAN_RE, _KENYA_ONLY
 
 router = APIRouter(tags=["analytics"])
 
@@ -28,16 +28,18 @@ async def trend(
     days: int = Query(120, ge=7, le=9000, description="lookback window in days"),
     session: AsyncSession = Depends(get_session),
 ) -> list[TrendPoint]:
-    """Weekly human / animal / RVF case trend over all `signals`.
+    """Weekly human / animal / RVF / Ebola-VHF signal trend for Kenya.
 
     Reads `signals`, not `county_week_features`: most live reports are
     national ("Kenya", no county) and the per-county table drops them.
+    Regional Ebola-watch rows (loc = neighbouring country) are excluded.
     Human/animal splits use the same regexes as `rebuild_week_features`.
+    The metric cards sum this endpoint over 90 days.
     """
     rows = (
         await session.execute(
             text(
-                """
+                f"""
                 SELECT date_trunc('week', event_time)::date AS week_start,
                        count(*) FILTER (
                            WHERE text ~* :human_re OR disease = ANY(:human_diseases)
@@ -45,9 +47,11 @@ async def trend(
                        count(*) FILTER (WHERE text ~* :animal_re) AS animal,
                        count(*) FILTER (
                            WHERE disease IN ('Rift Valley Fever', 'RVF')
-                       ) AS rvf
+                       ) AS rvf,
+                       count(*) FILTER (WHERE disease = ANY(:human_diseases)) AS vhf
                 FROM signals
                 WHERE event_time >= current_date - make_interval(days => :days)
+                  AND {_KENYA_ONLY}
                 GROUP BY week_start
                 ORDER BY week_start
                 """
@@ -66,6 +70,7 @@ async def trend(
             human=r["human"],
             animal=r["animal"],
             rvf=r["rvf"],
+            vhf=r["vhf"],
         )
         for r in rows
     ]

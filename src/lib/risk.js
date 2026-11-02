@@ -6,6 +6,12 @@
  * custom-property references that adapt to the active theme.
  */
 
+/** Filovirus / VHF disease labels (match backend FILOVIRUSES). */
+export const VHF_DISEASES = new Set(["Ebola", "Marburg", "Viral Hemorrhagic Fever"]);
+export const isVHF = d => VHF_DISEASES.has(d);
+/** Ebola / VHF series color — outside the severity ramp on purpose. */
+export const VHF_COLOR = "#7b3fa0";
+
 /** Continuous risk score (0–1) → hex color. */
 export function riskColor(r) {
   if (r >= 0.85) return "#b03030";

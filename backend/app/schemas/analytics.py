@@ -12,6 +12,7 @@ class TrendPoint(BaseModel):
     human: int
     animal: int
     rvf: int
+    vhf: int = 0  # Ebola / Marburg / unspecified VHF signals
 
 
 class DiseaseSlice(BaseModel):

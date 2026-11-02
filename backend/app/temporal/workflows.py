@@ -16,6 +16,7 @@ from temporalio.common import RetryPolicy
 from temporalio.exceptions import ActivityError
 
 with workflow.unsafe.imports_passed_through():
+    from app.geo.classify import GDELT_EBOLA_QUERY, GDELT_QUERY
     from app.temporal.activities import (
         classify_and_geocode,
         compute_getis_ord,
@@ -30,9 +31,16 @@ with workflow.unsafe.imports_passed_through():
     )
 
 # Ingestion tuning — kept here as deterministic workflow constants.
+# GDELT caps maxrecords at 250; a smaller cap silently dropped everything
+# older than the newest N articles between runs.
 _GDELT_TIMESPAN = "3m"
-_GDELT_MAX_RECORDS = 25
+_GDELT_MAX_RECORDS = 250
+_GDELT_EBOLA_TIMESPAN = "1m"
+_GDELT_EBOLA_MAX_RECORDS = 100
 _APIFY_MAX_ITEMS = 60
+# Bounded retries so one bad row can't hang a run forever (ingest_runs row
+# stuck RUNNING).
+_DB_RETRY = RetryPolicy(maximum_attempts=3)
 
 
 @workflow.defn
@@ -51,7 +59,10 @@ class IngestionWorkflow:
     """Pull from every source, classify + geocode, upsert into `signals`."""
 
     @workflow.run
-    async def run(self) -> dict:
+    async def run(self, sources: list[str] | None = None) -> dict:
+        """`sources` defaults to every source. The hourly schedule passes
+        ["gdelt"] so paid Apify runs only happen on a manual refresh."""
+        sources = sources or ["gdelt", "apify"]
         ingest_run_id = await workflow.execute_activity(
             create_ingest_run,
             workflow.info().workflow_id,
@@ -64,43 +75,57 @@ class IngestionWorkflow:
 
         # ── Source 1: GDELT news (free, no key). 429 is retryable with a
         #    long initial interval — the durable fix for manual retries. ──
+        gdelt_retry = RetryPolicy(
+            initial_interval=timedelta(seconds=60),
+            backoff_coefficient=2.0,
+            maximum_attempts=3,
+        )
         try:
             articles = await workflow.execute_activity(
                 fetch_gdelt,
-                args=[_GDELT_TIMESPAN, _GDELT_MAX_RECORDS],
+                args=[_GDELT_TIMESPAN, _GDELT_MAX_RECORDS, GDELT_QUERY],
                 start_to_close_timeout=timedelta(minutes=3),
-                retry_policy=RetryPolicy(
-                    initial_interval=timedelta(seconds=60),
-                    backoff_coefficient=2.0,
-                    maximum_attempts=3,
-                ),
+                retry_policy=gdelt_retry,
+            )
+            # Ebola / Marburg regional watch — second query, same source.
+            articles += await workflow.execute_activity(
+                fetch_gdelt,
+                args=[_GDELT_EBOLA_TIMESPAN, _GDELT_EBOLA_MAX_RECORDS, GDELT_EBOLA_QUERY],
+                start_to_close_timeout=timedelta(minutes=3),
+                retry_policy=gdelt_retry,
             )
             gdelt_rows = await workflow.execute_activity(
                 classify_and_geocode,
                 args=[articles, "gdelt"],
                 start_to_close_timeout=timedelta(minutes=2),
+                retry_policy=_DB_RETRY,
             )
             notes["gdelt"] = f"{len(gdelt_rows)} signal(s)"
         except ActivityError as exc:
             notes["gdelt"] = f"failed: {exc.cause}"
 
-        # ── Source 2: Apify Tweet Scraper (needs a paid plan). ──
-        try:
-            items = await workflow.execute_activity(
-                fetch_apify,
-                args=[_APIFY_MAX_ITEMS],
-                start_to_close_timeout=timedelta(minutes=10),
-                heartbeat_timeout=timedelta(seconds=45),
-                retry_policy=RetryPolicy(maximum_attempts=2),
-            )
-            apify_rows = await workflow.execute_activity(
-                classify_and_geocode,
-                args=[items, "apify"],
-                start_to_close_timeout=timedelta(minutes=2),
-            )
-            notes["apify"] = f"{len(apify_rows)} signal(s)"
-        except ActivityError as exc:
-            notes["apify"] = f"failed: {exc.cause}"
+        # ── Source 2: Apify Tweet Scraper (needs a paid plan). Only on a
+        #    manual refresh; the hourly schedule passes sources=["gdelt"]. ──
+        if "apify" not in sources:
+            notes["apify"] = "skipped (scheduled run)"
+        else:
+            try:
+                items = await workflow.execute_activity(
+                    fetch_apify,
+                    args=[_APIFY_MAX_ITEMS],
+                    start_to_close_timeout=timedelta(minutes=10),
+                    heartbeat_timeout=timedelta(seconds=45),
+                    retry_policy=RetryPolicy(maximum_attempts=2),
+                )
+                apify_rows = await workflow.execute_activity(
+                    classify_and_geocode,
+                    args=[items, "apify"],
+                    start_to_close_timeout=timedelta(minutes=2),
+                    retry_policy=_DB_RETRY,
+                )
+                notes["apify"] = f"{len(apify_rows)} signal(s)"
+            except ActivityError as exc:
+                notes["apify"] = f"failed: {exc.cause}"
 
         # ── Upsert everything; ON CONFLICT handles de-dup. ──
         all_rows = gdelt_rows + apify_rows
@@ -110,6 +135,7 @@ class IngestionWorkflow:
                 upsert_signals,
                 args=[all_rows, ingest_run_id],
                 start_to_close_timeout=timedelta(minutes=1),
+                retry_policy=_DB_RETRY,
             )
 
         # ── Phase 2: flow new signals into county_week_features (and, from

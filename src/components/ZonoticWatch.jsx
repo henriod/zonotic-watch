@@ -4,6 +4,7 @@ import { COUNTIES, SIGNALS } from "../data/surveillance.js";
 import { fetchCountyWeather } from "../lib/weather.js";
 import { apiEnabled, apiGet, apiPost } from "../lib/api.js";
 import { useAuth } from "../lib/auth.jsx";
+import { isVHF } from "../lib/risk.js";
 import { panel } from "../lib/ui.js";
 
 import DashboardHeader from "./DashboardHeader.jsx";
@@ -43,6 +44,9 @@ export default function ZonoticWatch() {
   const [signals, setSignals] = useState(SIGNALS);
   const [counties, setCounties] = useState(COUNTIES);
   const [weather, setWeather] = useState({});
+  // 90-day national totals summed from /trend (includes the ~90% of signals
+  // that have no county and so never reach /counties). Null = offline.
+  const [totals, setTotals] = useState(null);
   const [pulse, setPulse] = useState(false);
   const [scanTime, setScanTime] = useState(new Date());
 
@@ -88,6 +92,20 @@ export default function ZonoticWatch() {
       );
     return () => { cancelled = true; };
   }, []);
+
+  // Metric-card totals: re-sum /trend whenever the feed changes (mount + refresh).
+  useEffect(() => {
+    if (!apiEnabled()) return;
+    let cancelled = false;
+    apiGet("/trend?days=90")
+      .then(t => {
+        if (cancelled || !Array.isArray(t)) return;
+        const sum = k => t.reduce((s, p) => s + (p[k] || 0), 0);
+        setTotals({ human: sum("human"), animal: sum("animal"), vhf: sum("vhf") });
+      })
+      .catch(err => console.error("Totals fetch failed:", err));
+    return () => { cancelled = true; };
+  }, [signals]);
 
   // Trigger a server-side ingestion run, poll it to completion, then
   // reload the feed. Scraping, classification, geocoding, and de-dup all
@@ -135,8 +153,9 @@ export default function ZonoticWatch() {
     () => counties.filter(c => c.monitored !== false),
     [counties],
   );
-  const totalHuman = counties.reduce((s, c) => s + (c.human || 0), 0);
-  const totalAnimal = counties.reduce((s, c) => s + (c.animal || 0), 0);
+  const totalHuman = totals?.human ?? counties.reduce((s, c) => s + (c.human || 0), 0);
+  const totalAnimal = totals?.animal ?? counties.reduce((s, c) => s + (c.animal || 0), 0);
+  const vhfCount = totals?.vhf ?? signals.filter(s => isVHF(s.disease)).length;
   const countiesAffected = counties.filter(c => c.risk > 0.5).length;
   const critCount = signals.filter(s => s.sev === "CRITICAL").length;
   const highCount = signals.filter(s => s.sev === "HIGH").length;
@@ -162,6 +181,7 @@ export default function ZonoticWatch() {
         totalAnimal={totalAnimal}
         countiesAffected={countiesAffected}
         critCount={critCount}
+        vhfCount={vhfCount}
       />
 
       {/* MAIN 3-COLUMN GRID */}

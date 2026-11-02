@@ -55,6 +55,27 @@ GDELT_QUERY = (
     "sourcelang:eng"
 )
 
+# Ebola / Marburg regional watch — importation risk for Kenya comes from the
+# neighbourhood, so this branch is NOT Kenya-scoped. Signals that name no
+# county resolve to the named country (see geo/geocode.py NEIGHBOURS) and are
+# excluded from Kenya case counts but kept in the feed.
+GDELT_EBOLA_QUERY = (
+    '(ebola OR marburg OR "sudan virus" OR "viral hemorrhagic fever") '
+    '(Kenya OR Uganda OR Congo OR DRC OR "South Sudan" OR Tanzania OR '
+    "Ethiopia OR Somalia OR Rwanda OR Burundi) sourcelang:eng"
+)
+
+# Filovirus disease labels (must match DISEASE_KEYWORDS keys). Human-dominant
+# diseases for the human/livestock split, and the "Ebola focus" bucket.
+FILOVIRUSES: list[str] = ["Ebola", "Marburg", "Viral Hemorrhagic Fever"]
+
+# A filovirus report with any of these in Kenya is CRITICAL regardless of the
+# generic severity tiers ("suspected" alone is only HIGH elsewhere).
+FILOVIRUS_CASE_RE = re.compile(
+    r"\b(suspected|confirmed|cases?|died|deaths?|quarantin\w*|isolat\w*|"
+    r"screen\w*|importation|imported)\b"
+)
+
 # ── Classifier vocabulary ────────────────────────────────────────────────
 DISEASE_KEYWORDS: dict[str, list[str]] = {
     "Rift Valley Fever": ["rift valley", "rvf", "abortion storm"],

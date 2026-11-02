@@ -8,7 +8,18 @@ Run locally with:  python -m app.temporal.worker
 
 import asyncio
 import logging
+from datetime import timedelta
 
+from temporalio.client import (
+    Client,
+    Schedule,
+    ScheduleActionStartWorkflow,
+    ScheduleAlreadyRunningError,
+    ScheduleIntervalSpec,
+    ScheduleOverlapPolicy,
+    SchedulePolicy,
+    ScheduleSpec,
+)
 from temporalio.worker import Worker
 
 from app.config import get_settings
@@ -24,6 +35,40 @@ logger = logging.getLogger("zonoticwatch.worker")
 
 _MAX_ATTEMPTS = 30
 _RETRY_DELAY_SECONDS = 2.0
+_SCHEDULE_ID = "ingest-schedule"
+
+
+async def ensure_ingest_schedule(client: Client, interval_minutes: int) -> None:
+    """Create the recurring GDELT-only ingestion schedule (idempotent).
+
+    Workflow ids are "ingest-scheduled-<ts>" so GET /refresh/{id} can
+    describe them. OVERLAP SKIP means a slow run is never stacked.
+    """
+    if interval_minutes <= 0:
+        logger.info("Ingestion schedule disabled (INGEST_INTERVAL_MINUTES=0)")
+        return
+    settings = get_settings()
+    try:
+        await client.create_schedule(
+            _SCHEDULE_ID,
+            Schedule(
+                action=ScheduleActionStartWorkflow(
+                    workflows.IngestionWorkflow.run,
+                    ["gdelt"],
+                    id="ingest-scheduled",
+                    task_queue=settings.temporal_task_queue,
+                ),
+                spec=ScheduleSpec(
+                    intervals=[ScheduleIntervalSpec(every=timedelta(minutes=interval_minutes))]
+                ),
+                policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
+            ),
+        )
+        logger.info("Created ingestion schedule every %d min", interval_minutes)
+    except ScheduleAlreadyRunningError:
+        # ponytail: interval changes need a delete in the Temporal UI; add
+        # handle.update() if the interval is ever tuned in prod.
+        logger.info("Ingestion schedule already exists")
 
 
 async def main() -> None:
@@ -60,6 +105,7 @@ async def main() -> None:
             logger.info(
                 "Worker started on task queue '%s'", settings.temporal_task_queue
             )
+            await ensure_ingest_schedule(client, settings.ingest_interval_minutes)
             await worker.run()
             return
         except RuntimeError as exc:

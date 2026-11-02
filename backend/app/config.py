@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Ingestion sources (used from rollout step 4 onward).
     gdelt_api_base: str = "https://api.gdeltproject.org"
     apify_token: str = ""
+    # Hourly GDELT-only ingestion schedule created by the worker on startup.
+    # 0 disables it. Apify (paid) still only runs on a manual refresh.
+    ingest_interval_minutes: int = 60
 
     # Ollama Cloud — the AI Signal Analyzer proxies through the backend so
     # the API key never reaches the browser bundle. Blank `ollama_api_key`

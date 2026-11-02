@@ -6,12 +6,14 @@ import {
 import { TREND } from "../data/surveillance.js";
 import { apiEnabled, apiGet } from "../lib/api.js";
 import { panel } from "../lib/ui.js";
+import { VHF_COLOR } from "../lib/risk.js";
 
 /** Trend series — label and color, shared by the legend and the areas. */
 const SERIES = [
   { key:"human",  name:"Human",      color:"#b03030" },
   { key:"animal", name:"Livestock",  color:"#3b82c4" },
   { key:"rvf",    name:"RVF signal", color:"#e0a020" },
+  { key:"vhf",    name:"Ebola / VHF", color:VHF_COLOR },
 ];
 
 /** Recharts tooltip styled to the dashboard's design tokens. */
@@ -67,11 +69,12 @@ export default function TrendChart() {
           <Area type="monotone" dataKey="animal" name="Livestock" stroke="#3b82c4" fill="#3b82c4" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
           <Area type="monotone" dataKey="human"  name="Human"  stroke="#b03030" fill="#b03030" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
           <Area type="monotone" dataKey="rvf"    name="RVF signal" stroke="#e0a020" fill="#e0a020" fillOpacity={0.10} strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
+          <Area type="monotone" dataKey="vhf"    name="Ebola / VHF" stroke={VHF_COLOR} fill={VHF_COLOR} fillOpacity={0.10} strokeWidth={1.5} strokeDasharray="2 2" dot={false} />
         </AreaChart>
       </ResponsiveContainer>
       <p style={{ margin:"8px 0 0", fontSize:12, color:"var(--color-text-secondary)" }}>
         <i className="ti ti-trending-up" style={{ fontSize:12, color:"var(--color-text-danger)", marginRight:4 }} aria-hidden="true" />
-        {sum("human")} human · {sum("animal")} livestock · {sum("rvf")} RVF signals across {trend.length} weeks
+        {sum("human")} human · {sum("animal")} livestock · {sum("rvf")} RVF · {sum("vhf")} Ebola/VHF signals across {trend.length} weeks
       </p>
     </div>
   );

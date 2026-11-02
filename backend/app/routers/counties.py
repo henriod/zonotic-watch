@@ -1,8 +1,9 @@
 """County read endpoints — list, GeoJSON boundaries.
 
-All endpoints are pure PostGIS reads. Risk and case counts come from the
-latest `county_risk` / `county_week_features` rows per county (a LATERAL
-join picks the most recent `week_start`).
+All endpoints are pure PostGIS reads. Risk is the latest `county_risk` row
+per county; case counts are summed straight from `signals` over the last
+`_WINDOW_DAYS` (the old "latest county_week_features row" read showed a
+single, often stale or zeroed, week).
 """
 
 import json
@@ -14,30 +15,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_session
 from app.schemas.county import CountyOut
 from app.schemas.geojson import CountyFeature, CountyFeatureCollection, CountyProperties
+from app.temporal.activities import _ANIMAL_RE, _HUMAN_DISEASES, _HUMAN_RE
 
 router = APIRouter(tags=["counties"])
 
-# Latest risk + week-feature row per county.
-_LATEST_JOINS = """
+# Must match the metric cards' /trend window in ZonoticWatch.jsx.
+_WINDOW_DAYS = 90
+
+_RISK_JOIN = """
     LEFT JOIN LATERAL (
         SELECT risk FROM county_risk cr
         WHERE cr.county_id = c.id ORDER BY week_start DESC LIMIT 1
     ) r ON true
-    LEFT JOIN LATERAL (
-        SELECT human_cases, animal_cases, disease_breakdown
-        FROM county_week_features cwf
-        WHERE cwf.county_id = c.id ORDER BY week_start DESC LIMIT 1
-    ) f ON true
 """
 
-
-def _top_disease(breakdown) -> str | None:
-    """Dominant disease from a {disease: count} breakdown (jsonb or str)."""
-    if not breakdown:
-        return None
-    if isinstance(breakdown, str):
-        breakdown = json.loads(breakdown)
-    return max(breakdown, key=breakdown.get) if breakdown else None
+# Human / animal report counts + most common disease per county, last N days.
+_CASES_JOIN = """
+    LEFT JOIN LATERAL (
+        SELECT count(*) FILTER (
+                   WHERE s.text ~* :human_re OR s.disease = ANY(:human_diseases)
+               ) AS human,
+               count(*) FILTER (WHERE s.text ~* :animal_re) AS animal,
+               mode() WITHIN GROUP (ORDER BY s.disease) AS disease
+        FROM signals s
+        WHERE s.county_id = c.id
+          AND s.event_time >= now() - make_interval(days => :days)
+    ) f ON true
+"""
 
 
 @router.get("/counties", response_model=list[CountyOut])
@@ -50,15 +54,19 @@ async def list_counties(session: AsyncSession = Depends(get_session)) -> list[Co
                 SELECT c.id, c.name, c.monitored,
                        ST_Y(c.centroid::geometry) AS lat,
                        ST_X(c.centroid::geometry) AS lng,
-                       r.risk,
-                       COALESCE(f.human_cases, 0)  AS human,
-                       COALESCE(f.animal_cases, 0) AS animal,
-                       f.disease_breakdown
+                       r.risk, f.human, f.animal, f.disease
                 FROM counties c
-                {_LATEST_JOINS}
+                {_RISK_JOIN}
+                {_CASES_JOIN}
                 ORDER BY c.id
                 """
-            )
+            ),
+            {
+                "human_re": _HUMAN_RE,
+                "animal_re": _ANIMAL_RE,
+                "human_diseases": _HUMAN_DISEASES,
+                "days": _WINDOW_DAYS,
+            },
         )
     ).mappings().all()
     return [
@@ -71,7 +79,7 @@ async def list_counties(session: AsyncSession = Depends(get_session)) -> list[Co
             risk=row["risk"],
             human=row["human"],
             animal=row["animal"],
-            disease=_top_disease(row["disease_breakdown"]),
+            disease=row["disease"],
         )
         for row in rows
     ]
@@ -94,7 +102,7 @@ async def counties_geojson(
                        ST_AsGeoJSON(c.geom) AS geometry,
                        r.risk
                 FROM counties c
-                {_LATEST_JOINS}
+                {_RISK_JOIN}
                 ORDER BY c.id
                 """
             )

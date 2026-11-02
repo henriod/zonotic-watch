@@ -11,6 +11,8 @@ default, but now spatially correct whenever location data exists.
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +45,20 @@ TOWN_ALIASES: dict[str, str] = {
 }
 
 _FALLBACK_LOC = "Kenya"
+
+# Regional fallback for the Ebola/Marburg watch: when no county is named and
+# the text does not mention Kenya, label it with the neighbouring country so
+# it stays out of Kenya case counts. "Congo" must not match "Crimean-Congo".
+NEIGHBOURS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\buganda"), "Uganda"),
+    (re.compile(r"\b(drc|dr congo|(?<!crimean-)(?<!crimean )congo)\b"), "DR Congo"),
+    (re.compile(r"\bsouth sudan"), "South Sudan"),
+    (re.compile(r"\btanzania"), "Tanzania"),
+    (re.compile(r"\bethiopia"), "Ethiopia"),
+    (re.compile(r"\bsomalia"), "Somalia"),
+    (re.compile(r"\brwanda"), "Rwanda"),
+    (re.compile(r"\bburundi"), "Burundi"),
+]
 
 
 async def load_counties(session: AsyncSession) -> list[tuple[str, str]]:
@@ -78,6 +94,10 @@ def _resolve_by_name(
     for alias, cid in TOWN_ALIASES.items():
         if alias in text_lc:
             return cid, alias.title()
+    if "kenya" not in text_lc:
+        for pattern, country in NEIGHBOURS:
+            if pattern.search(text_lc):
+                return None, country
     return None, _FALLBACK_LOC
 
 

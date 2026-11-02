@@ -21,6 +21,8 @@ from temporalio import activity
 from app.config import get_settings
 from app.db.session import async_session_maker
 from app.geo.classify import (
+    FILOVIRUS_CASE_RE,
+    FILOVIRUSES,
     GDELT_QUERY,
     HANDLE_TOPIC,
     SCRAPE_KEYWORDS,
@@ -61,15 +63,17 @@ async def create_ingest_run(workflow_id: str) -> str:
 
 
 @activity.defn
-async def fetch_gdelt(timespan: str, max_records: int) -> list[dict]:
-    """Pull recent Kenya zoonotic news from the GDELT DOC API.
+async def fetch_gdelt(
+    timespan: str, max_records: int, query: str = GDELT_QUERY
+) -> list[dict]:
+    """Pull recent zoonotic news from the GDELT DOC API (max 250 records).
 
     Server-to-server, so no CORS problem. A 429 raises a retryable error;
     the workflow gives this activity a long initial retry interval.
     """
     settings = get_settings()
     params = {
-        "query": GDELT_QUERY,
+        "query": query,
         "mode": "ArtList",
         "format": "json",
         "maxrecords": str(max_records),
@@ -182,6 +186,17 @@ async def classify_and_geocode(raw_items: list[dict], source: str) -> list[dict]
                 session, c["text"], counties, c.get("lat"), c.get("lng")
             )
             resolved = county_id is not None
+            in_kenya = resolved or loc_name == "Kenya"
+
+            # Ebola focus: a filovirus case/screening report inside Kenya is
+            # always CRITICAL. Regional (Uganda/DRC...) reports keep the
+            # generic tier so they don't drive the national alert level.
+            if (
+                c["disease"] in FILOVIRUSES
+                and in_kenya
+                and FILOVIRUS_CASE_RE.search(c["text"].lower())
+            ):
+                c["severity"] = "CRITICAL"
 
             # Relevance gate — open-search tweets only.
             if source == "apify" and not c["verified"]:
@@ -319,9 +334,11 @@ _ANIMAL_RE = (
     r"animals?|flocks?|abattoir|mifugo|wanyama|ng'ombe"
 )
 # Filoviruses are human-dominant (human-to-human outbreaks): count them as
-# human cases even when the report wording doesn't trip _HUMAN_RE. Must match
-# the disease labels in app/geo/classify.py DISEASE_KEYWORDS.
-_HUMAN_DISEASES = ["Ebola", "Marburg", "Viral Hemorrhagic Fever"]
+# human cases even when the report wording doesn't trip _HUMAN_RE.
+_HUMAN_DISEASES = FILOVIRUSES
+# Regional Ebola-watch signals (loc_name = neighbouring country, no county)
+# are kept out of every Kenya count.
+_KENYA_ONLY = "(county_id IS NOT NULL OR loc_name = 'Kenya')"
 
 # Zero the signal-derived columns before re-aggregating, so counties/weeks
 # that no longer have signals (or were only ever seeded) drop to 0 instead

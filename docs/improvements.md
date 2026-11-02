@@ -81,7 +81,7 @@ bundling fixed, tiles/polygons still not drawing) and is deferred.
   the article lead paragraph for name matching; treat "national" as an
   explicit bucket in analytics rather than discarding it.
 
-### 8. Ingestion is never scheduled
+### 8. Ingestion is never scheduled - DONE (2026-11-02: hourly GDELT-only Temporal Schedule from the worker, `INGEST_INTERVAL_MINUTES`; maxrecords 250)
 - No Temporal Schedule or cron anywhere; data refreshes only when a logged-in
   user clicks Refresh (there were no signals at all from late June to early
   September). `_GDELT_MAX_RECORDS = 25` over a 3-month window
@@ -149,7 +149,7 @@ bundling fixed, tiles/polygons still not drawing) and is deferred.
   rates or empirical-Bayes smoothing, `esda.fdr`, fixed seed. This is the
   Phase 2 work in `docs/backend-plan.md`.
 
-### 17. `county_week_features` full rebuild and `/counties` reads
+### 17. `county_week_features` full rebuild and `/counties` reads - PARTLY DONE (2026-11-02: `/counties` and the metric cards now sum `signals` over 90 days, national rows included; the full rebuild is unchanged)
 - Every run zeroes the whole table and re-inserts all history (O(history),
   table bloat, zeroed rows never deleted). `/counties` shows the single
   latest row per county, which can be years old or a zeroed seed week, so
