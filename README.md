@@ -1,12 +1,15 @@
 # ZonoticWatch Kenya
 
-A zoonotic disease early-warning dashboard for Kenya. It visualises disease
-signals scraped from social media and news feeds, overlays weather-driven
-transmission risk on a county map, and analyses raw signal text with a local LLM.
+A zoonotic disease early-warning dashboard for Kenya. A FastAPI + PostGIS +
+Temporal backend ingests news and social-media signals, classifies and
+geocodes them, and computes per-county hotspot risk; a React dashboard shows
+the feed, map, weather, trends and an LLM signal analyzer.
 
-> **Status:** prototype. Trends and the disease breakdown are seeded with
-> sample data. The signal feed, county weather, and the signal analyzer pull
-> live data (see [Live data sources](#live-data-sources)).
+> **Status:** live at https://watch.kadiri.app. Everything on the dashboard is
+> backed by the database except county weather (browser-direct Open-Meteo).
+> Counts are **report volumes**, not clinical cases; the only clinical figure
+> is the admin-entered Ministry of Health Ebola number (see
+> [Ebola](#ebola-moh-confirmed-figures)).
 
 ## Tech stack
 
@@ -85,56 +88,62 @@ curl -L -o /tmp/gadm.zip \
 
 ## Live data sources
 
-The **Data Sources** tab's "Pull live signals" button queries every
-configured source, classifies each item (`src/lib/signals.js` — disease,
-county, severity by keyword), and merges the results into the **Live Signal
-Feed**. Sources fail independently — one being unavailable doesn't block the
-others. All calls are **browser-only** (no backend); a production deployment
-should proxy them so credentials stay server-side.
+All ingestion runs **server-side** in the backend's Temporal
+`IngestionWorkflow` (`backend/app/temporal/`). Sources run as independent
+branches, so one failing does not block the other. Items are classified by
+keyword (`backend/app/geo/classify.py` - disease, severity), geocoded to a
+county (`backend/app/geo/geocode.py` - coordinates, county names, town
+aliases), de-duplicated on insert, and aggregated into weekly county features
+and a Getis-Ord Gi* risk score.
 
-### GDELT — Kenya disease news (free, no setup)
+Two ways a run starts:
 
-`src/lib/gdelt.js` queries the [GDELT 2.0 DOC API](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/)
-for recent news about Kenya zoonotic disease. GDELT re-indexes worldwide news
-every ~15 minutes. It needs **no API key, no registration, no plan** and is
-CORS-enabled — it works out of the box. Duplicate syndicated headlines are
-collapsed in `articlesToSignals()`.
+- **Hourly schedule** - the worker creates a Temporal Schedule on startup
+  (`INGEST_INTERVAL_MINUTES`, default 60, `0` disables). Scheduled runs pull
+  **GDELT only**, so they cost nothing.
+- **Manual refresh** - the Data Sources tab's "Pull live signals" button
+  (login required) runs GDELT **and** Apify. Repeat clicks attach to the run
+  already in progress instead of starting another.
 
-### Open-Meteo — live county weather (free, no setup)
+### GDELT - Kenya disease news (free, no setup)
 
-`src/lib/weather.js` fetches current temperature, humidity, and today's
-rainfall for all 14 counties in one request from the
-[Open-Meteo API](https://open-meteo.com) — free, no key, CORS-enabled. The
-**Weather Risk** tab and the map's county detail card use this live data,
-falling back to the seeded `wx` sample values until the fetch resolves (a
-badge shows which is in use). Weather is loaded once on mount.
+Two queries against the [GDELT 2.0 DOC API](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/),
+up to 250 articles each: a Kenya-scoped zoonotic query (3-month window) and an
+**Ebola / Marburg regional watch** across Kenya and its neighbours (1-month
+window). Regional articles that name no Kenyan county are labelled with the
+country (Uganda, DR Congo, ...) and excluded from Kenya counts, but stay in
+the feed.
 
-### Apify — X/Twitter tweet scraper
+### Apify - X/Twitter tweet scraper (paid)
 
-`src/lib/apify.js` runs the [`apidojo/tweet-scraper`](https://apify.com/apidojo/tweet-scraper)
-actor with the Kenya keyword queries (`SCRAPE_KEYWORDS`). Set the token in
-`.env` as `VITE_APIFY_TOKEN`.
+The [`apidojo/tweet-scraper`](https://apify.com/apidojo/tweet-scraper) actor
+runs the Kenya keyword queries plus a `from:` filter over verified accounts
+(MoH, KEMRI, ILRI, major outlets). The token lives in the backend `.env` as
+`APIFY_TOKEN` and is sent as a bearer header, never in a URL. The actor needs
+a paid Apify plan (~$0.40 per 1,000 tweets); free runs return nothing.
 
-⚠️ **This actor requires a paid Apify plan.** On the free plan / via the API
-it returns only `{noResults:true}` placeholders — the app reports this
-explicitly. On a paid plan it bills **~$0.40 per 1,000 tweets**.
+### Open-Meteo - live county weather (free, no setup)
 
-### AI Signal Analyzer — local Ollama (free, private)
+`src/lib/weather.js` fetches temperature, humidity and today's rainfall for
+the monitored counties from the browser. No key, CORS-enabled.
 
-The **AI Signal Analyzer** panel sends a signal to a model running locally
-via [Ollama](https://ollama.com) (`src/lib/ollama.js`) and gets back a
-structured assessment — disease, severity, hosts, recommended actions, etc.
-No API key, no cost, and the text never leaves your machine. Ollama allows
-CORS from localhost, so the browser calls it directly.
+### AI Signal Analyzer - Ollama Cloud via the backend
 
-Setup: install Ollama, then `ollama pull gemma4`. Override the host/model
-with `VITE_OLLAMA_URL` / `VITE_OLLAMA_MODEL` in `.env` (defaults:
-`http://localhost:11434`, `gemma4:latest`). If Ollama isn't running the
-panel shows a clear error.
+The panel sends a signal (or any pasted text) to `POST /api/analyze`, which
+proxies to Ollama Cloud with `OLLAMA_API_KEY` kept server-side, and renders
+the structured assessment. Login required; rate-limited at the proxy. For
+offline development without `VITE_API_BASE`, it falls back to a local Ollama
+(`VITE_OLLAMA_URL`, `VITE_OLLAMA_MODEL`).
 
-> Note: live signals flow into the *feed* and the header counts. The county
-> risk **map** still uses sample data — turning raw report/tweet volume into
-> per-county risk scores needs a real model, which is out of scope here.
+### Ebola - MoH-confirmed figures
+
+Ebola case numbers are sensitive and are **never derived from media volume**.
+Admins record each Ministry of Health confirmed figure in the "Ebola (MoH)"
+tab with its source; the backend rejects any source that is not an
+`@MOH_Kenya` post or a `health.go.ke` page. The "Ebola cases (MoH confirmed)"
+card shows the newest entry (a dash when none). Media mentions are shown
+separately and labelled as mentions. A filovirus report inside Kenya with
+case/screening wording is always classified CRITICAL.
 
 ## Production deployment
 
@@ -200,8 +209,11 @@ ssh root@<server> 'cd /root/zonoticwatch && \
 # 3. Initialise the database (run once).
 docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
 docker compose -f docker-compose.prod.yml exec backend python -m scripts.load_counties
-docker compose -f docker-compose.prod.yml exec backend python -m scripts.seed_sample_data
+docker compose -f docker-compose.prod.yml exec backend python -m scripts.load_empres_rvf   # optional RVF history
 ```
+
+Do **not** run `scripts.seed_sample_data` in production: it inserts
+fabricated signals. It exists only for a local demo without ingestion.
 
 Point the subdomain's DNS **A record** at the server before the first
 start, so Traefik's Let's Encrypt HTTP challenge succeeds.
@@ -224,9 +236,24 @@ old image: `docker compose -f docker-compose.prod.yml up -d --build backend work
 Re-run `alembic upgrade head` if there are new migrations. The Temporal
 worker does **not** hot-reload — `up -d --build` recreates it.
 
-> The AI Signal Analyzer calls a **local** Ollama, so it does not work for
-> remote users in this deployment; it fails gracefully. The signal feed,
-> county map, and weather all work.
+`backend/poetry.lock` is committed and the Dockerfile requires it, so image
+rebuilds never re-resolve dependencies (an unlocked rebuild once pulled an
+incompatible SQLAlchemy).
+
+### Server ops
+
+- **Backups:** `scripts/backup-db.sh` runs from root's crontab at 02:30
+  nightly, writing `pg_dump -Fc` files to `/root/backups/zonoticwatch`
+  (14 days kept, log in `/var/log/zw-backup.log`). The dumps live on the
+  same box; copy them off once a destination is chosen. Restore:
+  `pg_restore -U zonotic -d zonotic --clean --if-exists < <file>.dump`.
+  Test a restore into a scratch database first (`CREATE DATABASE
+  zw_restore_test`, restore into it, count rows, drop it).
+- **Rate limiting:** `deploy/traefik-zonotic.yml` is the source of truth for
+  `/root/proxy/dynamic/zonotic.yml`. Login, analyze and refresh are limited
+  to 10 requests/min per IP (burst 5); Traefik hot-reloads the file.
+- **Ingestion schedule:** inspect with
+  `docker exec zonoticwatch-temporal-1 tctl --address temporal:7233 schedule describe --sid ingest-schedule`.
 
 ## Design tokens
 

@@ -68,14 +68,19 @@ A FastAPI app over PostGIS, with Temporal for async ingestion. Layout: `app/{mai
 
 ### Sample data vs. live data
 
-`src/data/surveillance.js` is the **offline fallback** seed (used when `VITE_API_BASE` is blank). With a backend configured:
+`src/data/surveillance.js` is the **offline fallback** seed, used only when `VITE_API_BASE` is blank. With a backend configured everything is live except county weather:
 
-- **Live via the backend:** the signal feed (`/signals` — GDELT + Apify ingestion) and the county polygons + risk tint (`/counties.geojson`).
-- **Still browser-direct:** county weather (Open-Meteo). The AI analyzer is browser-direct only in offline dev — with `VITE_API_BASE` set it routes through the backend's `/analyze` proxy so the Ollama Cloud API key never reaches the JS bundle.
-- **Still static seed:** the 15-day trend chart and the disease-distribution breakdown. The **county risk map** currently shows risk *seeded* into the `county_risk` table — turning raw report volume into computed per-county risk is Phase 2 (`docs/backend-plan.md` steps 7–9), not yet done.
-- Map markers and the metric-card totals still derive from the `COUNTIES` seed array — not yet cut over to `/counties`.
+- **Live via the backend:** signal feed (`/signals`), county polygons + Gi* risk tint (`/counties.geojson`), per-county 90-day report counts and dominant disease (`/counties`), weekly trend (`/trend`, includes an Ebola/VHF mentions series), disease distribution (`/diseases`), MoH Ebola figures (`/ebola`).
+- **Metric cards** sum `/trend?days=90` (so national signals with no county are counted). "Human" / "Livestock" are **report counts**, not cases. The Ebola card shows the newest admin-entered MoH figure only; media mentions are a sub-line.
+- **Browser-direct:** county weather (Open-Meteo). The analyzer goes through `/analyze` whenever `VITE_API_BASE` is set; local Ollama only in offline dev.
+- **Ingestion** runs hourly (GDELT only) from a Temporal Schedule the worker creates on startup, plus GDELT + Apify on a manual, login-gated refresh. Regional Ebola/Marburg articles get the neighbouring country as `loc_name` and are excluded from every Kenya count by the `_KENYA_ONLY` predicate in `activities.py`.
+- **Never seed production.** `scripts/seed_sample_data.py` inserts fabricated signals; it is for a local demo only.
 
 A county's `name` matches the GADM `name` property in `public/data/kenya-counties.geojson` (GADM 4.1, level 1) exactly — the map joins on it, and the backend `counties` table stores it alongside a slug `id`. The static GeoJSON stays as the map's offline fallback.
+
+### Production
+
+Deployed at https://watch.kadiri.app (`docker-compose.prod.yml`, shared Traefik on the `proxy` network). The server's `.env` is the source of truth - rsync always `--exclude .env`. `backend` and `worker` share one image: always `up -d --build backend worker`, then `alembic upgrade head` if there are migrations. `backend/poetry.lock` is required by the Dockerfile; run `poetry lock` after editing `pyproject.toml`. Nightly DB backups and the Traefik rate limit are described in `README.md` "Server ops". `docs/improvements.md` tracks the open review items with a dated status table.
 
 ### Conventions
 
