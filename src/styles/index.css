@@ -131,7 +131,10 @@ body {
   .dash-header {
     padding: 0.75rem;
   }
-  .dash-subtitle {
+  /* Signals count lives in the feed header and LIVE already signals
+     freshness, so drop both stats to uncrowd the status row. */
+  .dash-subtitle,
+  .dash-stat-secondary {
     display: none;
   }
   .dash-status {

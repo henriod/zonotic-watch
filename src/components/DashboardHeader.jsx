@@ -30,11 +30,11 @@ export default function DashboardHeader({
           <p style={{ margin:0, fontSize:12, color:"var(--color-text-secondary)" }}>Alert Level</p>
           <p style={{ margin:0, fontWeight:500, fontSize:13, color:overallRiskColor, fontFamily:"var(--font-mono)" }}>{overallRisk}</p>
         </div>
-        <div style={{ textAlign:"center" }}>
+        <div className="dash-stat-secondary" style={{ textAlign:"center" }}>
           <p style={{ margin:0, fontSize:12, color:"var(--color-text-secondary)" }}>Signals</p>
           <p style={{ margin:0, fontWeight:500, fontSize:13, fontFamily:"var(--font-mono)" }}>{signalCount}</p>
         </div>
-        <div style={{ textAlign:"center" }}>
+        <div className="dash-stat-secondary" style={{ textAlign:"center" }}>
           <p style={{ margin:0, fontSize:12, color:"var(--color-text-secondary)" }}>Last scan</p>
           <p style={{ margin:0, fontWeight:500, fontSize:12, fontFamily:"var(--font-mono)" }}>{scanTime.toLocaleTimeString()}</p>
         </div>
