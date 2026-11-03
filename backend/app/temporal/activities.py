@@ -231,9 +231,11 @@ async def classify_and_geocode(raw_items: list[dict], source: str) -> list[dict]
 
 @activity.defn
 async def upsert_signals(rows: list[dict], ingest_run_id: str) -> int:
-    """Insert signal rows, skipping ids already present. Returns inserted count.
+    """Insert signal rows, skipping duplicates. Returns inserted count.
 
-    `ON CONFLICT (id) DO NOTHING` replaces the client-side de-dup-by-id.
+    `ON CONFLICT DO NOTHING` covers both unique keys: the source id and
+    `content_hash` (generated in the DB from normalised text), so a story
+    syndicated under another URL or a retweet is not inserted twice.
     """
     if not rows:
         return 0
@@ -247,7 +249,7 @@ async def upsert_signals(rows: list[dict], ingest_run_id: str) -> int:
         VALUES
             (:id, :src, :handle, :text, :disease, :severity, :confidence,
              :county_id, :loc_name, :event_time, :ingest_run_id)
-        ON CONFLICT (id) DO NOTHING
+        ON CONFLICT DO NOTHING
         """
     )
     inserted = 0

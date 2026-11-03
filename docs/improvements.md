@@ -28,7 +28,7 @@ Priority: **P0** fix now (security / data loss) - **P1** next sprint
 | 12 CRITICAL inflation | Done 2026-11-02: word-boundary tiers, CRITICAL needs two HIGH terms or an emergency phrase, negation list. Existing rows reclassified with `scripts.reclassify`. |
 | 13 tweet dates | Done 2026-11-02: legacy X format parsed via `email.utils`. |
 | 14 retries | Partly: `maximum_attempts` on classify/upsert; missing token still retryable; no `finally`. No stuck RUNNING rows today. |
-| 15 dedup | Open. |
+| 15 dedup | Done 2026-11-03: `signals.content_hash` is a DB-generated column (lower-case, `RT @user:` stripped, non-word runs collapsed, md5) with a unique index; migration 0004 drops existing duplicates (oldest kept); upsert is `ON CONFLICT DO NOTHING`; tweet ids prefixed `x-`. |
 | 16 risk model | Open. |
 | 17 features/counties | Partly: `/counties` + cards sum 90 days of `signals`; full rebuild unchanged. |
 | 18-21 trend axis, freshness, polling, 401 UX | Open. |
@@ -43,7 +43,7 @@ Priority: **P0** fix now (security / data loss) - **P1** next sprint
 
 Added since the review: MoH-only `ebola_cases` table + admin tab (Ebola counts are never media-derived), regional Ebola GDELT query with neighbour-country labelling, Ebola/VHF card, trend series and feed badge.
 
-Next: 6 (npm audit), 15 (dedup), 24-26 (ops), 18-21 (frontend correctness).
+Next: 6 (npm audit), 24-26 (ops), 18-21 (frontend correctness).
 
 ---
 
@@ -169,7 +169,7 @@ bundling fixed, tiles/polygons still not drawing) and is deferred.
 - **Fix:** `maximum_attempts` on every activity, `ApplicationError(non_retryable=True)`
   for config errors, finalize the run row in `finally`.
 
-### 15. Weak cross-run dedup
+### 15. Weak cross-run dedup - DONE (2026-11-03: generated `content_hash` + unique index, migration 0004; `ON CONFLICT DO NOTHING`; `x-` tweet ids)
 - Ids are `gdelt-{url}` with `ON CONFLICT (id)`; the same story syndicated
   under another URL is inserted again, inflating every count. Tweet ids are
   unprefixed; retweets not collapsed.

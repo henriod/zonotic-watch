@@ -285,7 +285,7 @@ def classify_tweets(tweets: list[dict]) -> list[dict]:
         tid = t.get("id") or t.get("url")
         out.append(
             {
-                "id": str(tid) if tid else f"x-{_hash(text)}",
+                "id": f"x-{tid}" if tid else f"x-{_hash(text)}",
                 "src": "X · verified" if verified else "X/Twitter",
                 "handle": _tweet_handle(t),
                 "text": text,

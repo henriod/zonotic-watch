@@ -7,7 +7,7 @@ Run either way:
 No DB needed: only the pure functions are exercised.
 """
 
-from app.geo.classify import _parse_tweet_date, detect_disease, detect_severity
+from app.geo.classify import _parse_tweet_date, classify_tweets, detect_disease, detect_severity
 from app.geo.geocode import _resolve_by_name
 
 # A stand-in for the `counties` table: (id, GADM name).
@@ -82,6 +82,12 @@ def test_tweet_date_formats():
     assert _parse_tweet_date("2024-12-12T21:39:29.000Z") == "2024-12-12T21:39:29+00:00"
     assert _parse_tweet_date("Thu Dec 12 21:39:29 +0000 2024") == "2024-12-12T21:39:29+00:00"
     assert _parse_tweet_date("garbage").startswith("20")  # falls back to now, never raises
+
+
+def test_tweet_ids_are_prefixed():
+    rows = classify_tweets([{"id": 123, "text": "anthrax in Baringo"}, {"text": "no id"}])
+    assert rows[0]["id"] == "x-123"
+    assert rows[1]["id"].startswith("x-")
 
 
 if __name__ == "__main__":

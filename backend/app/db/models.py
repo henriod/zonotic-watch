@@ -96,8 +96,11 @@ class Signal(Base):
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=sql_text("now()")
     )
+    # DB-generated from normalised text (migration 0004); unique -> de-dup.
+    content_hash: Mapped[str] = mapped_column(Text, nullable=False)
 
     __table_args__ = (
+        Index("uq_signals_content_hash", "content_hash", unique=True),
         Index("ix_signals_event_time", sql_text("event_time DESC")),
         Index("ix_signals_county_id", "county_id"),
         Index("ix_signals_disease", "disease"),
